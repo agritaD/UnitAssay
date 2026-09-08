@@ -30,6 +30,34 @@ sorter's output directory. Kilosort is a separate program (and GPL-3.0, against
 this package's MIT); run it, and any preprocessing, from your own pipeline
 script.
 
+## The pipeline this was built and calibrated on
+
+```
+SpikeGLX  ->  CatGT  ->  Kilosort 4  ->  unitassay
+                         Th_universal 7.5, Th_learned 8.5, Th_single_ch 6
+                         nblocks 1, dmin 20, dminx 32, nearest_chans 10
+```
+
+**This is not just provenance — some thresholds are calibrated against it, and
+one rule depends on it.** Rule `1` (IDENTITY) sets its overlap threshold from a
+far-pair null measured on the recording itself, and that null's shape depends on
+preprocessing. Measured on our corpus: on the CatGT arm the null behaves as the
+threshold assumes; on the **plain, non-CatGT** Kilosort arm of the same
+recordings it runs at 99 / 95 / 91 / 59% across spike-count bands and **rule 1
+stops firing altogether**.
+
+So on data preprocessed differently, unitassay will not error — it will quietly
+lose a rule. Two consequences worth knowing:
+
+* the duplicate channel is the one at risk; the within-cluster and neighbour
+  rules do not depend on this null;
+* the published accuracy (83.7% balanced) was measured on this pipeline, and
+  does not automatically transfer to another one.
+
+If you run a different preprocessing chain and want to know whether the
+calibration still holds, that is a measurement we can provide — ask, and it is a
+small job: the far-pair null is computed from the recording itself.
+
 ## Try it without any data
 
 A tiny synthetic sorter directory ships with the package, so the tool is
