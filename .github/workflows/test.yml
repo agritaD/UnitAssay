@@ -42,6 +42,10 @@ jobs:
           unitassay run --help
           unitassay batch --help
 
+      - name: The shipped fixture runs end to end
+        # the README's first command, from the installed wheel
+        run: unitassay run --ks-dir tests/fixture --out "${{ runner.temp }}/demo"
+
       - name: Tests
         run: |
           python -m pip install pytest

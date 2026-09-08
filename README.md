@@ -30,6 +30,24 @@ sorter's output directory. Kilosort is a separate program (and GPL-3.0, against
 this package's MIT); run it, and any preprocessing, from your own pipeline
 script.
 
+## Try it without any data
+
+A tiny synthetic sorter directory ships with the package, so the tool is
+runnable straight from a clone — four clusters, eight channels, 300 s, about a
+second:
+
+```bash
+unitassay run --ks-dir tests/fixture --out /tmp/demo
+# 4 clusters   PASS 3  FAIL 1
+```
+
+One clean unit each on two distant channels, one built with 12% of its spikes
+inside the refractory window (fails at rule `2`), and one below the 240-spike
+floor (returned as `low_spike_count`). It is a smoke test and a golden
+regression, **not a benchmark** — four hand-made clusters say nothing about
+accuracy. Rebuild it with `python tests/make_fixture.py`; the seed is fixed and
+it regenerates byte-for-byte.
+
 ## Use
 
 One recording:
