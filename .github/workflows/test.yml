@@ -1,0 +1,48 @@
+name: tests
+
+# WHAT THIS PROVES, and why it is worth a workflow: that unitassay installs and
+# runs with nothing else present. The package once depended on `diptest` without
+# declaring it, and every run worked anyway because the lab environment happened
+# to carry it. A clean-environment install on every commit is what makes the
+# standalone claim checkable instead of remembered.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # INSTALL FROM A BUILT WHEEL, not `-e .`: an editable install can import
+      # files a wheel would not ship, which is exactly how a packaging gap hides.
+      - name: Build and install the wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel
+          python -m pip install dist/*.whl
+
+      # Imported from a directory that is NOT the source tree, so a missing
+      # module cannot be satisfied by the checkout sitting on sys.path.
+      - name: Import from outside the source tree
+        run: cd /tmp && python -c "import unitassay; print(unitassay.__version__)"
+
+      - name: CLI entry points
+        run: |
+          unitassay run --help
+          unitassay batch --help
+
+      - name: Tests
+        run: |
+          python -m pip install pytest
+          python -m pytest tests/

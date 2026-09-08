@@ -55,3 +55,9 @@ unitassay = "unitassay.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["unitassay*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The suite needs no data and no network. If a test ever does, it does not
+# belong in this directory -- a reviewer must be able to run it on a clone.
+addopts = "-q"
