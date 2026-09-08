@@ -253,8 +253,15 @@ def curate(r):
         n_spikes = r.get('n_spikes')
         if n_spikes is not None and n_spikes < LOW_SPIKE_THRESHOLD:
             out['needs_inspection'] = False
-    # ONE exit point, so the stage cannot disagree with the rule that set it
-    out['stage'] = stage_of(out['rule'])
+    # `stage` IS NOT WRITTEN TO THE ROW (2026-09-08). It was fully derivable
+    # from `rule_id` -- the canonical number IS the stage number, 0 disagreements
+    # across 53,428 clusters, and the test suite asserts it -- so carrying both
+    # was a second copy of one fact that could only ever go out of sync. Callers
+    # that want it derive it on read: `stage_of(row['rule'])`, or
+    # `STAGE_QUESTION[stage_of(row['rule'])]` for the question that stage asks.
+    #
+    # Agrita, 2026-09-08: "over-information is also harmful."
+
     # THE READER-FACING ID, emitted alongside the internal one.
     #
     # `rule` is the LEGACY key and it stays, because 14 scripts select on it

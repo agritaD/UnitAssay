@@ -44,7 +44,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': False,
       'rule': '0',
-      'stage': '2-refractory',
       'tag': 'isi_vr_fail'}),
     # rule 1  ->  confirmed_fail
     ({'between_all_neighbours_separated': None,
@@ -62,7 +61,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': False,
       'rule': '1',
-      'stage': '3-composition',
       'tag': 'confirmed_fail'}),
     # rule 1  ->  ldl_bimodal_ms_passed
     ({'between_all_neighbours_separated': None,
@@ -80,7 +78,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': True,
       'rule': '1',
-      'stage': '3-composition',
       'tag': 'ldl_bimodal_ms_passed'}),
     # rule 1-drift  ->  ldl_bimodal_drift_split
     ({'between_all_neighbours_separated': None,
@@ -98,7 +95,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': True,
       'rule': '1-drift',
-      'stage': '3-composition',
       'tag': 'ldl_bimodal_drift_split'}),
     # rule 2  ->  confirmed_pass
     ({'between_all_neighbours_separated': None,
@@ -116,7 +112,6 @@ CASES = [
      {'decision': 'PASS',
       'needs_inspection': False,
       'rule': '2',
-      'stage': '7-clean',
       'tag': 'confirmed_pass'}),
     # rule 4  ->  confirmed_fail_within_cluster
     ({'between_all_neighbours_separated': None,
@@ -134,7 +129,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': False,
       'rule': '4',
-      'stage': '4-contamination',
       'tag': 'confirmed_fail_within_cluster'}),
     # rule 5  ->  confirmed_fail_neighbor_real
     ({'between_all_neighbours_separated': None,
@@ -152,7 +146,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': False,
       'rule': '5',
-      'stage': '5-neighbour',
       'tag': 'confirmed_fail_neighbor_real'}),
     # rule 5  ->  retrieved_neighbor_confirmed
     ({'between_all_neighbours_separated': True,
@@ -179,7 +172,6 @@ CASES = [
      {'decision': 'PASS',
       'needs_inspection': False,
       'rule': '5',
-      'stage': '5-neighbour',
       'tag': 'retrieved_neighbor_confirmed'}),
     # rule 5-all  ->  confirmed_fail_neighbor_real
     ({'between_all_neighbours_separated': False,
@@ -211,7 +203,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': False,
       'rule': '5-all',
-      'stage': '5-neighbour',
       'tag': 'confirmed_fail_neighbor_real'}),
     # rule 5-all-pending  ->  pending_between_cluster_check
     ({'between_all_neighbours_separated': None,
@@ -238,7 +229,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': True,
       'rule': '5-all-pending',
-      'stage': '5-neighbour',
       'tag': 'pending_between_cluster_check'}),
     # rule 5-ccg  ->  declined_coincidence_excess
     ({'between_all_neighbours_separated': True,
@@ -260,7 +250,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': False,
       'rule': '5-ccg',
-      'stage': '5-neighbour',
       'tag': 'declined_coincidence_excess'}),
     # rule 5-ccg-deficit  ->  declined_coincidence_deficit
     ({'between_all_neighbours_separated': True,
@@ -282,7 +271,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': False,
       'rule': '5-ccg-deficit',
-      'stage': '5-neighbour',
       'tag': 'declined_coincidence_deficit'}),
     # rule 5-ccg-pending  ->  pending_ccg_check
     ({'between_all_neighbours_separated': True,
@@ -300,7 +288,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': False,
       'rule': '5-ccg-pending',
-      'stage': '5-neighbour',
       'tag': 'pending_ccg_check'}),
     # rule 5-pending  ->  pending_between_cluster_check
     ({'between_all_neighbours_separated': None,
@@ -318,7 +305,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': True,
       'rule': '5-pending',
-      'stage': '5-neighbour',
       'tag': 'pending_between_cluster_check'}),
     # rule R  ->  redundant_re_detection
     ({'between_all_neighbours_separated': None,
@@ -336,7 +322,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': False,
       'rule': 'R',
-      'stage': '1-identity',
       'tag': 'redundant_re_detection'}),
     # rule other  ->  unexplained_other_needs_review
     ({'between_all_neighbours_separated': None,
@@ -354,7 +339,6 @@ CASES = [
      {'decision': 'FAIL',
       'needs_inspection': False,
       'rule': 'other',
-      'stage': '8-fall-through',
       'tag': 'unexplained_other_needs_review'}),
 ]
 
@@ -386,11 +370,16 @@ def test_curate_does_not_mutate_its_input():
         assert record == before
 
 
-def test_stage_agrees_with_the_rule_that_set_it():
-    """One exit point sets `stage`, so it cannot disagree with `rule`."""
-    for record, expected in CASES:
+def test_stage_is_derived_on_read_not_stored():
+    """`stage` is not a row field: it is `stage_of(rule)` and nothing more.
+
+    Carrying both was one fact in two places, which can only ever go out of
+    sync. Deriving it costs a dict lookup.
+    """
+    for record, _expected in CASES:
         got = curate(dict(record))
-        assert got['stage'] == stage_of(got['rule'])
+        assert 'stage' not in got
+        assert stage_of(got['rule']) in STAGE_QUESTION
 
 
 def test_rule_ids_are_canonical():

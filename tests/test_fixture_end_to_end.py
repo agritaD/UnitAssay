@@ -25,14 +25,14 @@ import pytest
 
 FIXTURE = Path(__file__).parent / 'fixture'
 
-# clu_id: (n_spikes, decision, rule_id, stage, outcome)
+# clu_id: (n_spikes, decision, rule_id, outcome)
 GOLDEN = {
-    0: (700, 'PASS', '7', '7-clean', 'clean'),
-    1: (650, 'PASS', '7', '7-clean', 'clean'),
+    0: (700, 'PASS', '7', 'clean'),
+    1: (650, 'PASS', '7', 'clean'),
     # 12% of its ISIs are inside the refractory window, by construction
-    2: (600, 'FAIL', '2', '2-refractory', 'oversplit'),
+    2: (600, 'FAIL', '2', 'oversplit'),
     # under the 240-spike floor: a verdict is returned, but named for what it is
-    3: (120, 'PASS', '7', '7-clean', 'low_spike_count'),
+    3: (120, 'PASS', '7', 'low_spike_count'),
 }
 
 REQUIRED = ('spike_times.npy', 'spike_clusters.npy', 'spike_templates.npy',
@@ -71,12 +71,11 @@ def test_every_cluster_is_curated(result):
 @pytest.mark.parametrize('clu', sorted(GOLDEN))
 def test_verdict_is_unchanged(result, clu):
     rows, _timing, _out, _pairs = result
-    n, decision, rid, stage, outcome = GOLDEN[clu]
+    n, decision, rid, outcome = GOLDEN[clu]
     r = rows[clu]
     assert r['n_spikes'] == n
     assert r['decision'] == decision
     assert r['rule_id'] == rid
-    assert r['stage'] == stage
     assert r['outcome'] == outcome
 
 
@@ -98,7 +97,7 @@ def test_rows_carry_the_reader_facing_fields(result):
     """What a user reads off a row, on a real run rather than a synthetic record."""
     rows, _timing, _out, _pairs = result
     for r in rows.values():
-        for f in ('decision', 'rule_id', 'rule_label', 'stage', 'tag',
+        for f in ('decision', 'rule_id', 'rule_label', 'tag',
                   'outcome', 'sub_type', 'findings', 'n_spikes'):
             assert f in r, f
 

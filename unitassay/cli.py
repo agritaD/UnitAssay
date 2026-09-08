@@ -150,8 +150,8 @@ def main(argv=None):
     print(f"isolate {timing['isolate_sec']}s   curate {timing['curate_sec']}s   "
           f"total {timing['total_sec']}s")
     ps = summarise_pairs(pairs)
-    print(f"{ps['n_pairs']} pairs   {ps['n_both_pass']} with both members PASS"
-          f"   {ps['n_action_review']} to review")
+    print(f"{ps['n_pairs']} pairs   {ps['n_not_adjudicated']} measured but not "
+          f"adjudicated   {ps['n_both_pass']} with both members PASS")
     print(f"-> {out / 'curated.json'}\n-> {out / 'pairs.json'}")
     return 0
 
