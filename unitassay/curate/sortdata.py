@@ -41,6 +41,27 @@ from pathlib import Path
 from unitassay.curate.lratio import ms_l_ratio
 
 
+
+def _nan_reduce(fn, a, empty):
+    """`fn` over `a`, returning `empty` where a slice is entirely NaN.
+
+    AN ALL-NaN SLICE IS A REAL STATE HERE, not an error: a cluster can be absent
+    from a frame, so every neighbour L-ratio in that frame is NaN. numpy's
+    nan-reductions are right to warn about it in general and wrong to warn here,
+    and a LIBRARY MUST NOT SPRAY WARNINGS AT ITS CALLER -- nor silence them
+    globally, which would hide the caller's own. So the empty case is handled
+    rather than caught: `np.nanmax` and `np.nanmean` are never asked a question
+    they cannot answer.
+    """
+    a = np.asarray(a, dtype=float)
+    if a.size == 0:
+        return np.full(a.shape[1:] if a.ndim > 1 else (), empty, dtype=float)
+    ok = ~np.all(np.isnan(a), axis=0)
+    out = np.full(a.shape[1:], empty, dtype=float)
+    if np.any(ok):
+        out[ok] = fn(a[:, ok], axis=0)
+    return out
+
 def sortdata_path(ks4_path, clu_id, isolation_dir='isolation'):
     """Path to clu_id's (0-indexed) SortData.h5 file. The ONE place ms_id
     = clu_id + 1 is computed for building this specific filename."""
@@ -137,8 +158,8 @@ def worst_frame(result):
     feature-space visualization), falling back to the first valid frame.
     Returns None if there's no valid frame at all."""
     n_others = result['lr_others'].shape[0]
-    lr_other_max = (np.nanmax(result['lr_others'], axis=0) if n_others > 0
-                    else np.zeros(result['n_frames']))
+    lr_other_max = (_nan_reduce(np.nanmax, result['lr_others'], np.nan)
+                    if n_others > 0 else np.zeros(result['n_frames']))
     idx = int(np.nanargmax(lr_other_max)) if np.any(np.isfinite(lr_other_max)) else 0
     fd = result['frames'][idx] if idx < len(result['frames']) else None
     if fd is None:
@@ -239,9 +260,14 @@ def channel_fields(sd):
     for k in range(1, mat.shape[0]):
         mat[k, np.isnan(mat[k, :]) & (~absent)] = 0.0
     clean = np.all(mat < L_RATIO_MS_THRESH, axis=0)
-    other_max = np.nanmax(lo, axis=0) if lo.shape[0] else np.zeros(sd['n_frames'])
-    mn_n, mn_o = np.nanmean(noise), np.nanmean(other_max)
-    mx_n, mx_o = np.nanmax(noise), np.nanmax(other_max)
+    other_max = (_nan_reduce(np.nanmax, lo, np.nan) if lo.shape[0]
+                 else np.zeros(sd['n_frames']))
+    # scalar reductions over a possibly all-NaN frame vector, same reasoning
+    def _agg(fn, v):
+        v = np.asarray(v, dtype=float)
+        return float(fn(v[~np.isnan(v)])) if np.any(~np.isnan(v)) else np.nan
+    mn_n, mn_o = _agg(np.mean, noise), _agg(np.mean, other_max)
+    mx_n, mx_o = _agg(np.max, noise), _agg(np.max, other_max)
     if mn_n >= mn_o and mx_n >= L_RATIO_MS_THRESH:
         dom = 'noise'
     elif mn_o > mn_n and mx_o >= L_RATIO_MS_THRESH:

@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from unitassay.isolate.config import MindSnagConfig
+from unitassay.isolate.config import IsolateConfig
 from unitassay.isolate.io.ks_loader import load_ks_dir
 from unitassay.isolate.io.mat_reader import load_mat
 from unitassay.isolate.types import MatchDetail, StitchResult
@@ -50,7 +50,7 @@ class NeuronStitcher:
 
     def __init__(
         self,
-        cfg: MindSnagConfig,
+        cfg: IsolateConfig,
         output_dirs: list[str | Path],
         ks_dirs: list[str | Path],
         stitch_output_dir: str | Path,

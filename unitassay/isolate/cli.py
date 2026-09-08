@@ -1,6 +1,6 @@
-"""Click CLI for mind_snag: ``mind-snag run ...``
+"""Click CLI for the isolate layer: ``python -m unitassay.isolate run ...``
 
-Provides the ``mind-snag`` command with subcommands:
+Subcommands:
   - ``run``     : Execute the full pipeline
   - ``convert`` : Convert between .mat and HDF5 formats
   - ``stitch``  : Run cross-recording neuron stitching
@@ -30,7 +30,7 @@ def _setup_logging(verbose: bool) -> None:
 @click.group()
 @click.version_option(package_name="mind-snag")
 def cli() -> None:
-    """mind_snag: Neuropixel spike sorting, curation, and neuron stitching."""
+    """unitassay isolate: per-frame isolation quality from a sorter's output."""
     pass
 
 
@@ -38,24 +38,22 @@ def cli() -> None:
 @click.option("--config", "-c", type=click.Path(exists=True), required=True, help="Path to YAML config file")
 @click.option("--ks-dir", required=True, type=click.Path(), help="Path to Kilosort output directory")
 @click.option("--output-dir", "-o", required=True, type=click.Path(), help="Path for pipeline output")
-@click.option("--bin-file", default=None, help="Path to .ap.bin file; required for KILOSORT stage")
 @click.option("--stages", "-s", multiple=True, default=None, help="Stages to run (default: extract through iso_units)")
 @click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
 def run(
     config: str,
     ks_dir: str,
     output_dir: str,
-    bin_file: str | None,
     stages: tuple[str, ...] | None,
     verbose: bool,
 ) -> None:
     """Run the spike sorting pipeline."""
     _setup_logging(verbose)
 
-    from unitassay.isolate.config import MindSnagConfig
+    from unitassay.isolate.config import IsolateConfig
     from unitassay.isolate.pipeline import Pipeline
 
-    cfg = MindSnagConfig.from_yaml(config)
+    cfg = IsolateConfig.from_yaml(config)
     pipeline = Pipeline(cfg)
 
     stage_list = list(stages) if stages else None
@@ -63,7 +61,6 @@ def run(
         ks_dir=ks_dir,
         output_dir=output_dir,
         stages=stage_list,
-        bin_file=bin_file,
     )
 
 
@@ -102,10 +99,10 @@ def stitch(
     """Run cross-recording neuron stitching."""
     _setup_logging(verbose)
 
-    from unitassay.isolate.config import MindSnagConfig
+    from unitassay.isolate.config import IsolateConfig
     from unitassay.isolate.stitching.stitch_neurons import NeuronStitcher
 
-    cfg = MindSnagConfig.from_yaml(config)
+    cfg = IsolateConfig.from_yaml(config)
 
     stitcher = NeuronStitcher(cfg, list(output_dirs), list(ks_dirs), stitch_output_dir)
     result = stitcher.run()

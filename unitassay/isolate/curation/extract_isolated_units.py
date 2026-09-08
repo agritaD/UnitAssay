@@ -17,7 +17,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from unitassay.isolate.config import MindSnagConfig
+from unitassay.isolate.config import IsolateConfig
 from unitassay.isolate.io.mat_reader import load_mat
 from unitassay.isolate.io.hdf5_writer import write_hdf5
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def extract_isolated_units(
-    cfg: MindSnagConfig,
+    cfg: IsolateConfig,
     ks_dir: str | Path,
     output_dir: str | Path,
 ) -> None:

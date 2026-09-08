@@ -58,6 +58,10 @@ def write_hdf5(
 
         # Default attributes
         f.attrs["creation_date"] = datetime.now().isoformat()
+        # ON-DISK FORMAT ID, deliberately unchanged by the rename to unitassay.
+        # It identifies the FILE LAYOUT, not the package, and thousands of
+        # SortData.h5 files already carry it. Nothing in this package reads it;
+        # an external reader might.
         f.attrs["format"] = "mind_snag_v2"
 
         if attrs:

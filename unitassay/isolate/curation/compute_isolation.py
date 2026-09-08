@@ -18,7 +18,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from unitassay.isolate.config import MindSnagConfig
+from unitassay.isolate.config import IsolateConfig
 from unitassay.isolate.io.ks_loader import load_ks_dir
 from unitassay.isolate.io.cluster_groups import read_cluster_groups
 from unitassay.isolate.io.hdf5_writer import write_sort_data_h5
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 def compute_isolation(
-    cfg: MindSnagConfig,
+    cfg: IsolateConfig,
     ks_dir: str | Path,
     output_dir: str | Path,
     clu_ids: list[int] | None = None,

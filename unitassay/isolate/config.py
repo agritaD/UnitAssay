@@ -66,7 +66,7 @@ class IsolationConfig:
 
 
 @dataclass
-class MindSnagConfig:
+class IsolateConfig:
     """Central configuration for the mind_snag pipeline.
 
     All pipeline functions take this config as their first argument,
@@ -76,8 +76,6 @@ class MindSnagConfig:
     gpu: int = 0  # 0-indexed (MATLAB was 1-indexed)
     n_threads: int = 64
     ks_version: int = 4
-    kilosort_venv: str = ""       # path to Python venv with kilosort[gui]==4.0.22
-    kilosort_script: str = ""     # path to run_kilosort4.py (auto-detected if empty)
     probe_file: str = ""          # path to probe file (.mat, .prb, or .json)
     ks_params_file: str = ""      # path to KS4 params JSON (empty = use KS4 defaults)
     n_chan_bin: int = 385
@@ -102,7 +100,7 @@ class MindSnagConfig:
             self.isolation = IsolationConfig(**self.isolation)
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> MindSnagConfig:
+    def from_yaml(cls, path: str | Path) -> IsolateConfig:
         """Load configuration from a YAML file."""
         with open(path) as f:
             data = yaml.safe_load(f)

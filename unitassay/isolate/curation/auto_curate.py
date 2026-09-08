@@ -53,7 +53,7 @@ try:
 except ImportError as e:
     raise ImportError("mind_snag's burst-cell LDA gate requires the 'diptest' package") from e
 
-from unitassay.isolate.config import MindSnagConfig
+from unitassay.isolate.config import IsolateConfig
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ def _is_lda_bimodal(feats: np.ndarray, min_spikes: int = LDA_MIN_SPIKES,
     """
     return is_overmerged(feats, min_spikes=min_spikes, duration_sec=duration_sec)
 
-def auto_curate(output_dir: str | Path, cfg: MindSnagConfig) -> None:
+def auto_curate(output_dir: str | Path, cfg: IsolateConfig) -> None:
     """Auto-curate clusters based on L-Ratio and ISI violation thresholds.
 
     For each cluster's SortData:

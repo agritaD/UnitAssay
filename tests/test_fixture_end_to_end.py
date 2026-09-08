@@ -137,3 +137,21 @@ def test_the_pairwise_view_is_emitted(result):
         # fields accrete one convenience at a time.
         assert set(p) == {'a', 'b', 'channel', 'both_pass', 'criterion_met',
                           'evidence', 'why', 'action'}
+
+
+def test_a_run_emits_no_warnings(tmp_path):
+    """A library must not spray warnings at its caller.
+
+    An all-NaN slice is a REAL state here -- a cluster can be absent from a
+    frame, so every neighbour L-ratio in it is NaN -- and numpy is right to warn
+    about that in general. The fix is to handle the empty case, not to catch the
+    warning and not to filter globally, which would hide the caller's own.
+    """
+    import warnings
+    from unitassay.cli import run_session
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        run_session(FIXTURE, tmp_path / 'quiet')
+    ours = [w for w in caught
+            if 'unitassay' in str(getattr(w, 'filename', ''))]
+    assert not ours, [f'{w.category.__name__}: {w.message}' for w in ours]

@@ -20,7 +20,7 @@ Part of unitassay. Licence: MIT.
 
 __version__ = "2.0.0"
 
-from unitassay.isolate.config import MindSnagConfig
+from unitassay.isolate.config import IsolateConfig
 from unitassay.isolate.pipeline import Pipeline
 
-__all__ = ["MindSnagConfig", "Pipeline", "__version__"]
+__all__ = ["IsolateConfig", "Pipeline", "__version__"]

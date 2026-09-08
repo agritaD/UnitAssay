@@ -13,7 +13,7 @@ import logging
 from enum import Enum
 from pathlib import Path
 
-from unitassay.isolate.config import MindSnagConfig
+from unitassay.isolate.config import IsolateConfig
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +44,10 @@ class Pipeline:
 
     Parameters
     ----------
-    cfg : MindSnagConfig instance
+    cfg : IsolateConfig instance
     """
 
-    def __init__(self, cfg: MindSnagConfig):
+    def __init__(self, cfg: IsolateConfig):
         self.cfg = cfg
 
     def run(
@@ -55,17 +55,14 @@ class Pipeline:
         ks_dir: str | Path,
         output_dir: str | Path,
         stages: list[str | Stage] | None = None,
-        bin_file: str | Path | None = None,
     ) -> None:
         """Run the pipeline.
 
         Parameters
         ----------
-        ks_dir : path to Kilosort output directory (input for stages 1-4,
-                 output destination for stage 0)
+        ks_dir : path to Kilosort output directory (input for stages 1-4,)
         output_dir : path for pipeline output (NPclu.mat, SortData, etc.)
         stages : list of stage names to run (default: EXTRACT through ISO_UNITS)
-        bin_file : path to .ap.bin file; required for KILOSORT stage
         """
         cfg = self.cfg
         ks_dir = Path(ks_dir)
