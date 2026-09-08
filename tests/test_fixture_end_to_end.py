@@ -25,7 +25,7 @@ import pytest
 
 FIXTURE = Path(__file__).parent / 'fixture'
 
-# clu_id: (n_spikes, decision, rule_id, outcome)
+# clu_id: (n_spikes, decision, rule_id, error_class)
 GOLDEN = {
     0: (700, 'PASS', '7', 'clean'),
     1: (650, 'PASS', '7', 'clean'),
@@ -71,12 +71,12 @@ def test_every_cluster_is_curated(result):
 @pytest.mark.parametrize('clu', sorted(GOLDEN))
 def test_verdict_is_unchanged(result, clu):
     rows, _timing, _out, _pairs = result
-    n, decision, rid, outcome = GOLDEN[clu]
+    n, decision, rid, ec = GOLDEN[clu]
     r = rows[clu]
     assert r['n_spikes'] == n
     assert r['decision'] == decision
     assert r['rule_id'] == rid
-    assert r['outcome'] == outcome
+    assert r['error_class'] == ec
 
 
 def test_the_refractory_violator_is_the_one_that_fails(result):
@@ -93,12 +93,25 @@ def test_the_refractory_violator_is_the_one_that_fails(result):
     assert all(rows[c]['isi_rate'] < 0.01 for c in (0, 1, 3))
 
 
+def test_the_row_does_not_carry_category(result):
+    """`category` was Pass/Fail/Low-spike-count/Redundant.
+
+    Pass/Fail duplicated `decision`; Low-spike-count and Redundant duplicated the
+    error class. Verified equivalent on all 53,428 real clusters before removal:
+    category == 'Pass' is exactly a PASS whose error class is `clean`.
+    """
+    rows, _timing, _out, _pairs = result
+    for r in rows.values():
+        assert 'category' not in r
+        assert 'outcome' not in r, 'renamed to error_class'
+
+
 def test_rows_carry_the_reader_facing_fields(result):
     """What a user reads off a row, on a real run rather than a synthetic record."""
     rows, _timing, _out, _pairs = result
     for r in rows.values():
         for f in ('decision', 'rule_id', 'rule_label', 'tag',
-                  'outcome', 'sub_type', 'findings', 'n_spikes'):
+                  'error_class', 'sub_type', 'findings', 'n_spikes'):
             assert f in r, f
 
 

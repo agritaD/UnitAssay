@@ -391,7 +391,7 @@ LEGACY_SUB_TYPES = {
         'renamed 2026-09-03: the old name asserted an ERROR CLASS, and ground '
         'truth agreed with it 19.2% of the time. What the LDL establishes is '
         'two separable groups; whether they are two NEURONS is a separate claim '
-        'it cannot make. The error class now lives in curate/findings.outcome.'),
+        'it cannot make. The error class now lives in curate/findings.error_class.'),
 }
 
 # DELETED, not renamed: the sub-type no longer exists because nothing can
@@ -777,17 +777,17 @@ def curate_and_classify(records):
     Returns the records, updated in place with all three layers' fields.
     """
     from unitassay.curate.decision_flow import curate
-    from unitassay.curate.findings import findings, outcome
+    from unitassay.curate.findings import findings, error_class
     for r in records:
         r.update(curate(r))
     for r, c in zip(records, classify_all([dict(x) for x in records])):
-        r.update(category=c['category'], sub_type=c['sub_type'],
+        r.update(sub_type=c['sub_type'],
                  locus=c['locus'], mechanism=c['mechanism'])
     for r in records:
         f = findings(r)
         r['findings'] = sorted(f['fired'])
         r['untested_channels'] = sorted(f['untested'])
-        r['outcome'] = outcome(f)
+        r['error_class'] = error_class(f)
     return records
 
 
@@ -865,7 +865,15 @@ def check_pass_has_affirmative_channel(rows):
     """
     bad = []
     for r in rows:
-        if r.get('category') != PASS:
+        # WAS `category != PASS`. `category` is no longer written to the row --
+        # it was Pass/Fail/Low-spike-count/Redundant, and Pass/Fail duplicated
+        # `decision` while Low-spike-count and Redundant duplicated the error
+        # class. Verified equivalent on all 53,428 real clusters, 0
+        # disagreements: category == 'Pass' is exactly a PASS whose error class
+        # is `clean`, which excludes the 2,296 low-spike passes this check was
+        # always meant to skip.
+        if not (r.get('decision') == 'PASS'
+                and r.get('error_class') == 'clean'):
             continue
         n = n_affirmative_channels(r)
         if n == 0:

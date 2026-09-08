@@ -12,7 +12,7 @@ sequence
 
     load KS4 -> mind_snag SortData -> channel_fields -> overmerge_verdict
              -> ISI-VR -> re-detection (two passes) -> curate -> classify
-             -> findings/outcome
+             -> findings/error_class
 
 was written out independently in `m260820_whole_tool_performance.py`,
 `m260820_ks4_vs_tool.py`, `mearec_synthetic/score_tag_mapping.py`,

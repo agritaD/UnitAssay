@@ -377,7 +377,7 @@ OUTCOME_PRIORITY = (
 UNREACHED_OUTCOMES = ('noise_contaminated', 'noise_cluster')
 
 
-def outcome(f):
+def error_class(f):
     """One outcome for reporting, from a finding set. `fired` keeps the rest."""
     for name, out in OUTCOME_PRIORITY:
         if name in f['fired']:

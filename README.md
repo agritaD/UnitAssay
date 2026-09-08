@@ -180,10 +180,17 @@ purpose — collapsing them is how a tool ends up asserting more than it measure
 > is a clean cluster (rule 7), `rule: '0'` is refractory (rule 2), and identity
 > is `rule: 'R'`. `rule_id` is the id this document is indexed by.
 
-`sub_type` names the test. `outcome` names the cluster. The map between them is
-measured against ground truth, never assumed — `within_cluster_contamination`
+`sub_type` names the test. `error_class` names the cluster. The map between them
+is measured against ground truth, never assumed — `within_cluster_contamination`
 turns out to be over-split 79% of the time, and the tool says so rather than
 implying it.
+
+**There is no `overmerge` or `contamination` error class, deliberately.** Both
+were removed as names once measured: `overmerge` agreed with ground truth 19.2%
+of the time, and the within-cluster contamination test never looks at another
+cluster, so it can establish that foreign spikes are present but not whose they
+are. `mixed_cluster` is what the tool says instead, and it makes no claim about
+which.
 
 ### The rules, in the order they are checked
 
@@ -245,9 +252,9 @@ compares a cluster to a reference *channel* and never looks at another cluster,
 so it can establish that foreign events are present but not who they belong to.
 Only rule 5 can, and only for neighbours that were flagged.
 
-## Outcomes
+## Error classes
 
-| outcome | meaning |
+| `error_class` | meaning |
 |---|---|
 | `clean` | nothing fired |
 | `duplicate` | these spikes are already counted under another cluster |

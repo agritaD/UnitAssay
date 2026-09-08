@@ -10,8 +10,8 @@ Each returned row carries three layers, which answer different questions and
 must not be collapsed:
 
     decision / rule / tag        WHICH TEST decided, and what it said
-    category / sub_type          the MECHANISM, named for the test
-    outcome / findings           the ERROR CLASS, named for the cluster
+    sub_type                     the MECHANISM, named for the test
+    error_class / findings       the ERROR CLASS, named for the cluster
 
 `findings` is the parallel view: every rule's test evaluated independently, so a
 row reports EVERY finding it carries rather than the first rule to fire. 36% of
@@ -24,9 +24,9 @@ Part of unitassay. Licence: MIT.
 from .curation import curate_session, cluster_inputs      # noqa: F401
 from .pairs import pair_findings, summarise as summarise_pairs  # noqa: F401
 from .decision_flow import curate, rule_label, rule_id     # noqa: F401
-from .findings import findings, outcome                    # noqa: F401
+from .findings import findings, error_class                # noqa: F401
 from .taxonomy import classify, classify_all, curate_and_classify   # noqa: F401
 
 __all__ = ['curate_session', 'cluster_inputs', 'curate', 'rule_label',
-           'rule_id', 'findings', 'outcome', 'classify', 'classify_all',
+           'rule_id', 'findings', 'error_class', 'classify', 'classify_all',
            'curate_and_classify']
