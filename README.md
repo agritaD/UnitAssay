@@ -92,22 +92,25 @@ only 20.7% of those labelled `oversplit` do. A per-cluster output under-reports
 pairwise errors by construction, so every run also writes `pairs.json`:
 
 ```json
-{"a": 214, "b": 231, "channel": "re_detection",
- "mechanism": "shared_spikes_unadjudicated",
- "criterion_met": false,
- "why": "lag below LAG_MIN_MS: same spikes at ~zero lag, which is either
-         re-detection or one artifact seen twice -- not adjudicated",
- "evidence": {"overlap": 0.91, "overlap_other": 0.30, "lag_ms": 0.05},
- "decision_a": "PASS", "decision_b": "PASS", "both_pass": true,
+{"a": 156, "b": 174, "channel": "re_detection",
+ "criterion_met": false, "both_pass": true,
+ "evidence": {"overlap": 0.550, "lag_ms": -0.05},
+ "why": "same spikes at ~zero lag: re-detection or one artifact seen twice, not adjudicated",
  "action": "review_pair"}
 ```
 
-**No new statistic and no verdict changes** — these are the measurements the tool
+**Eight fields, and no new vocabulary.** A pair says which question was asked
+(`channel`), whether the criterion fired, the numbers, why, and what to do. It
+does *not* repeat each member's verdict — that is in `curated.json`, joinable on
+`clu_id` — and it does not add a `mechanism` word list, because the per-cluster
+row already has one.
+
+**No new statistic and no verdict changes** — these are measurements the tool
 already made, reported instead of discarded. The duplicate criterion is a
 conjunction (overlap **and** a non-zero lag), and on real data 98.6% of pairs over
-the overlap floor fail the lag half. Those are now reported with
-`criterion_met: false` and which half failed, rather than omitted: reporting a
-measurement and declining to adjudicate it is a different statement from silence.
+the overlap floor fail the lag half. Those now appear with `criterion_met: false`
+and why, rather than being dropped: reporting a measurement and declining to
+adjudicate it is a different statement from silence.
 
 `both_pass` is the field to filter on. Under every explanation of a high-overlap
 pair — one member is a copy, or both are one artifact — both members passing is

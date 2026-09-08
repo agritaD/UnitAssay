@@ -115,9 +115,13 @@ def test_the_pairwise_view_is_emitted(result):
     from unitassay.curate import summarise_pairs
     assert timing['n_pairs'] == len(pairs)
     s = summarise_pairs(pairs)
-    assert set(s) >= {'n_pairs', 'by_mechanism', 'n_both_pass',
-                      'n_action_review', 'n_action_drop'}
+    assert set(s) == {'n_pairs', 'by_channel', 'n_not_adjudicated', 'n_both_pass'}
     for p in pairs:
         assert p['a'] < p['b'], 'pairs must be canonically ordered'
         assert p['channel'] in ('re_detection', 'neighbour')
         assert p['action'] in ('none', 'review_pair', 'drop_a', 'drop_b')
+        # EIGHT FIELDS, fixed. This tool already carries eight per-cluster
+        # vocabularies; the pair record adds none, and the test says so, because
+        # fields accrete one convenience at a time.
+        assert set(p) == {'a', 'b', 'channel', 'both_pass', 'criterion_met',
+                          'evidence', 'why', 'action'}

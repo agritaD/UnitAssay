@@ -28,14 +28,22 @@ THE TWO CHANNELS, and they answer different questions:
   neighbour      are these two clusters SEPARABLE? Feature space adjudicates
                  (rule 5a) and the time domain gates it (5b coincidence excess,
                  5c refractory deficit). The feature-space arm is measured at
-                 chance against per-pair ground truth, so `mechanism` here says
+                 chance against per-pair ground truth, so `decided_by` here says
                  which test spoke, never that the pair is settled.
+
+NO NEW VOCABULARY. A pair record says which QUESTION was asked (`channel`),
+whether the criterion fired (`criterion_met`), which rule adjudicated it
+(`decided_by`, the same `rule_id` the README's table is indexed by) and why in
+words. It deliberately does NOT add a `mechanism` field: rows already have one,
+with a different 9-value vocabulary, and two meanings for one word in one tool is
+how a reader ends up trusting the wrong column. This tool already carries eight
+per-cluster vocabularies; it does not need a ninth.
 
 WHAT IS NOT HERE YET. Division over-split -- two clusters that avoid each other at
 short lag because one neuron cannot fire inside its own refractory period -- has
 no detector in this tool, so no record is emitted for it. Measured corpus-wide:
-6,758 such pairs, 0 flagged, 1,966 with both members passing. `mechanism` is an
-open vocabulary so that channel can be added without changing this contract.
+6,758 such pairs, 0 flagged, 1,966 with both members passing. Adding it means a
+new `decided_by` rule, not a new field.
 
 Author: Agrita Dubey
 Developed with Claude (Anthropic).
@@ -62,19 +70,20 @@ def pair_findings(rows):
         if key not in out:
             (x, y) = key[0]
             ra, rb = by.get(x), by.get(y)
+            # EIGHT FIELDS, and each one is here because dropping it loses
+            # something. `decision_a/b` and `outcome_a/b` were cut: they copy
+            # curated.json, which the reader already has and can join on clu_id.
+            # What survives of them is `both_pass`, the one derived fact worth
+            # filtering on -- under every explanation of a high-overlap pair
+            # (one member is a copy, or both are one artifact) both members
+            # passing is wrong. No `mechanism` field: rows already have one with
+            # a different vocabulary, and this tool has eight per-cluster word
+            # lists already. It does not need a ninth.
             out[key] = dict(
                 a=x, b=y, channel=channel,
-                decision_a=(ra or {}).get('decision'),
-                decision_b=(rb or {}).get('decision'),
-                outcome_a=(ra or {}).get('outcome'),
-                outcome_b=(rb or {}).get('outcome'),
-                # THE FIELD THE LEAK IS VISIBLE IN. Under every explanation of a
-                # high-overlap pair -- one member is a copy, or both are one
-                # artifact -- both members passing is wrong.
                 both_pass=((ra or {}).get('decision') == 'PASS'
                            and (rb or {}).get('decision') == 'PASS'),
-                mechanism=None, criterion_met=None, why=None,
-                evidence={}, action='none')
+                criterion_met=None, evidence={}, why=None, action='none')
         return out[key]
 
     # ---- channel 1: shared spikes ------------------------------------------
@@ -86,9 +95,15 @@ def pair_findings(rows):
             ev = rec['evidence']
             # the scan lists a pair from both sides; keep the larger containment,
             # which is the direction the criterion is applied in
-            if p['overlap'] >= ev.get('overlap', -1.0):
-                ev.update(overlap=p['overlap'], overlap_other=p['overlap_other'],
-                          lag_ms=p['lag_ms'], over_lag_gate=p['over_lag_gate'])
+            # THE LARGER CONTAINMENT, which is the number the criterion is
+            # applied to (`is_redetection_pair` is tried in both directions).
+            # Reporting both directions invited the reader to work out which
+            # cluster is inside which, and for an unadjudicated pair that is not
+            # actionable anyway -- for an adjudicated one `action` already says
+            # which member to drop.
+            o = max(p['overlap'], p['overlap_other'])
+            if o >= ev.get('overlap', -1.0):
+                ev.update(overlap=o, lag_ms=p['lag_ms'])
 
     # a flagged pair is one where a member was declared a copy of the other
     for r in rows:
@@ -96,7 +111,7 @@ def pair_findings(rows):
         if partner is None:
             continue
         rec = _rec(a, int(partner), 're_detection')
-        rec.update(mechanism='re_detection', criterion_met=True,
+        rec.update(criterion_met=True,
                    why='overlap and lag both over threshold',
                    action=f'drop_{"a" if rec["a"] == a else "b"}')
 
@@ -105,23 +120,21 @@ def pair_findings(rows):
             continue
         ev = rec['evidence']
         rec['criterion_met'] = False
-        rec['mechanism'] = 'shared_spikes_unadjudicated'
         # WHICH HALF OF THE CONJUNCTION FAILED is the useful part. `lag_below_
         # threshold` is the population that needs the duplicate-versus-shared-
         # artifact question answered before it can be given a verdict; the two
         # candidate answers need opposite actions, so this reports rather than
         # decides.
-        rec['why'] = ('lag below LAG_MIN_MS: same spikes at ~zero lag, which is '
-                      'either re-detection or one artifact seen twice -- not '
-                      'adjudicated' if not ev.get('over_lag_gate') else
+        rec['why'] = ('same spikes at ~zero lag: re-detection or one artifact '
+                      'seen twice, not adjudicated'
+                      if abs(ev.get('lag_ms', 0.0)) <= 0.2 else
                       'overlap below this band\'s calibrated threshold')
         rec['action'] = 'review_pair' if rec['both_pass'] else 'none'
 
     # ---- channel 2: separability -------------------------------------------
-    FROM_RULE = {'5a': ('separated_in_feature_space', 'none'),
-                 '5b': ('coincidence_excess', 'review_pair'),
-                 '5c': ('refractory_deficit', 'review_pair'),
-                 '5d': ('evidence_incomplete', 'review_pair')}
+    # the action each neighbour rule implies; the rule_id itself is the label
+    ACTION = {'5a': 'none', '5b': 'review_pair',
+              '5c': 'review_pair', '5d': 'review_pair'}
     for r in rows:
         a, rid = r['clu_id'], r.get('rule_id')
         acc = r.get('ccg_accusers') or []
@@ -138,33 +151,32 @@ def pair_findings(rows):
             thr = (ccg_z_threshold(x['n_min'], k)
                    if x.get('z') is not None and x.get('n_min') is not None
                    else None)
-            rec['evidence'].update(
-                z=x.get('z'), n_min=x.get('n_min'), obs=x.get('obs'),
-                lam=x.get('lam'), threshold=thr, n_accusers=k,
-                over_threshold=(None if thr is None else x['z'] > thr))
-            mech, act = FROM_RULE.get(str(rid), (None, 'none'))
-            if mech:
-                rec.update(mechanism=mech, criterion_met=(str(rid) != '5d'),
-                           why=f'rule {rid} on the accused cluster', action=act)
-            elif rec['mechanism'] is None:
+            # z against its own threshold is the whole statement; obs/lam are
+            # the Poisson internals behind z and `over_threshold` is z > thr.
+            rec['evidence'].update(z=x.get('z'), threshold=thr,
+                                   n_spikes_min=x.get('n_min'))
+            if str(rid) in ACTION:
+                rec.update(criterion_met=(str(rid) != '5d'),
+                           why=f'rule {rid} adjudicated the accused cluster',
+                           action=ACTION[str(rid)])
+            elif rec['criterion_met'] is None:
                 # THE ACCUSED CLUSTER NEVER REACHED THE NEIGHBOUR TEST. Accusers
                 # are computed for any cluster mind_snag blames on a neighbour,
                 # but an earlier rule can decide it first -- refractory or
                 # contamination, say -- and then rule 5 never runs. The pair was
                 # MEASURED and not ADJUDICATED, which is a different thing from
                 # adjudicated-and-separate, so it is named rather than left null.
-                rec.update(mechanism='accused_decided_earlier',
-                           criterion_met=False,
+                rec.update(criterion_met=False,
                            why=f'the accused cluster was decided at rule {rid} '
                                f'before the neighbour test ran',
                            action='none')
         if not acc and r.get('dominant_neighbour') is not None and \
                 str(rid or '').startswith('5'):
             rec = _rec(a, int(r['dominant_neighbour']), 'neighbour')
-            mech, act = FROM_RULE.get(str(rid), ('not_separated', 'none'))
-            rec.update(mechanism=mech, criterion_met=(str(rid) != '5d'),
-                       why=f'rule {rid} on the accused cluster, no CCG statistic',
-                       action=act)
+            rec.update(criterion_met=(str(rid) != '5d'),
+                       why=f'rule {rid} adjudicated the accused cluster; no CCG '
+                           f'statistic was available',
+                       action=ACTION.get(str(rid), 'none'))
 
     return [out[k] for k in sorted(out, key=lambda k: (k[0], k[1]))]
 
@@ -172,13 +184,9 @@ def pair_findings(rows):
 def summarise(pairs):
     """Counts a caller can print without re-deriving them."""
     from collections import Counter
-    c = Counter(p['mechanism'] for p in pairs)
+    # four numbers. Anything else a caller wants is one filter over `pairs`.
     return dict(
         n_pairs=len(pairs),
-        by_mechanism=dict(c),
-        n_both_pass=sum(1 for p in pairs if p['both_pass']),
-        n_both_pass_unadjudicated=sum(
-            1 for p in pairs
-            if p['both_pass'] and p['mechanism'] == 'shared_spikes_unadjudicated'),
-        n_action_review=sum(1 for p in pairs if p['action'] == 'review_pair'),
-        n_action_drop=sum(1 for p in pairs if p['action'].startswith('drop')))
+        by_channel=dict(Counter(p['channel'] for p in pairs)),
+        n_not_adjudicated=sum(1 for p in pairs if not p['criterion_met']),
+        n_both_pass=sum(1 for p in pairs if p['both_pass']))
