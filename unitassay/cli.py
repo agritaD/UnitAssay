@@ -3,11 +3,14 @@
 Authors: Agrita Dubey, Qiao (Betty) Xu
 Developed with Claude (Anthropic).
 
-    unitassay run --ks-dir <sorter_output> --out <dir>
+    unitassay run   --ks-dir <sorter_output> --out <dir>
+    unitassay batch --sessions <list.tsv> --out <root> [--n-jobs 6]
 
 Runs `isolate` over a sorter's output to produce per-cluster isolation files,
 then `curate` over those, and writes one JSON with every cluster's verdict and
-the time each stage took.
+the time each stage took. `batch` does the same across a list of recordings,
+one subdirectory each, resuming only results from this version -- see
+`unitassay/batch.py`.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
 Developed with Claude (Anthropic).
@@ -104,7 +107,25 @@ def main(argv=None):
     r.add_argument('--reuse-isolation', action='store_true',
                    help='reuse existing isolation files; a timing measured this '
                         'way describes a cache, not a run')
+    b = sub.add_parser('batch', help='isolate then curate many recordings')
+    b.add_argument('--sessions', required=True,
+                   help='TSV of "name<TAB>ks_dir", one recording per line')
+    b.add_argument('--out', required=True, help='output root; one subdir per session')
+    b.add_argument('--n-jobs', type=int, default=6,
+                   help='concurrent recordings (each uses --n-threads threads)')
+    b.add_argument('--window-sec', type=int, default=WINDOW_SEC)
+    b.add_argument('--n-threads', type=int, default=N_THREADS)
     a = ap.parse_args(argv)
+
+    if a.cmd == 'batch':
+        from unitassay.batch import read_sessions, run_batch
+        # the list is validated BEFORE the pool starts: a bad manifest should
+        # cost a second, not an hour of workers failing one at a time
+        ss = read_sessions(a.sessions)
+        summary = run_batch(ss, a.out, n_jobs=a.n_jobs,
+                            window_sec=a.window_sec, n_threads=a.n_threads,
+                            log=lambda m: print(m, flush=True))
+        return 0 if summary['n_failed'] == 0 else 1
 
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     rows, timing = run_session(a.ks_dir, out, a.window_sec, a.n_threads,

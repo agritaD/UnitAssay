@@ -29,10 +29,23 @@ dependencies = [
     "h5py>=3.8",
     "click>=8.0",
     "pyyaml>=6.0",
+    # REQUIRED, not optional: curate/bimodality.py raises on import without it,
+    # so the whole package is unimportable. The dip statistic is one of the two
+    # every within-cluster verdict rests on.
+    "diptest>=0.6",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
+# RUNNING THE SORTER is not part of the post-Kilosort job, so kilosort and torch
+# are an extra rather than a dependency: `isolate/sorting/run_kilosort4.py`
+# imports them inside the function that needs them and raises with install
+# instructions, so the package imports and curates without either.
+sort = ["kilosort[gui]==4.0.22", "torch>=2.0"]
+# SpikeInterface's quality metrics are a COMPARISON path, not the tool's own.
+# `isolate/curation/si_quality_metrics.py` guards its imports and nothing in the
+# package imports that module.
+si = ["spikeinterface>=0.100", "pandas>=2.0"]
 
 [project.urls]
 Homepage = "https://github.com/agritaD/unitassay"

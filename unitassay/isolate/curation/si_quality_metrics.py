@@ -17,11 +17,14 @@ import logging
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 try:
+    # pandas travels with spikeinterface, not with the tool: it is used here for
+    # a return annotation (lazy, `from __future__ import annotations`) and one
+    # empty frame. At module level it made the whole `si` extra mandatory.
+    import pandas as pd
     import spikeinterface as si
     import spikeinterface.qualitymetrics as sqm
 
