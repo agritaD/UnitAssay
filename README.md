@@ -141,6 +141,18 @@ the `rule_id` on every row.
 | `7` | CLEAN | all rules passed | nothing found | — |
 | `8` | FALL-THROUGH | unattributed | failed upstream, nothing attributed it | why |
 
+**`5a` is the only rule other than `7` that can pass a cluster, and it passes it
+for a different reason.** It is not a filter but an *adjudication*: by the time
+it runs, the cluster has already failed and a specific neighbour has been
+blamed. `5a` asks whether the blame holds — separated, and the cluster is
+**retrieved**; not separated, and the failure is confirmed. So a `5a` PASS is a
+weaker claim than a `7` PASS:
+
+| | means | on 147 real sessions |
+|---|---|---|
+| `7` `confirmed_pass` | no test fired | 20,397 |
+| `5a` `retrieved_neighbor_confirmed` | a test fired and rule 5 overturned it | 3,983 |
+
 **5b and 5c are the only tests in the table that are not feature space**, and
 that is deliberate. Scored against per-pair ground truth, the feature-space
 statistics are at chance for "one neuron or two" — dip AUC 0.496, L-ratio 0.503,
@@ -148,6 +160,14 @@ and a cross-validated linear discriminant 0.503, which is the ceiling for that
 family. The cause is circularity: they ask whether two clouds separate in PC
 space, and the sorter guaranteed that when it drew the boundary. Spike timing is
 not party to that decision, so it can corroborate independently.
+
+**`4b` and `6` are defensive branches and do not fire in practice** — zero of
+61,353 clusters across 147 real sessions and 41 synthetic recordings. `4b`
+requires an ISI result to be missing, which the pipeline always computes; `6`
+handles an LDL verdict of `ambiguous` or `untested`, and `ambiguous` is resolved
+to `not_overmerged` before the rules run (the L-ratio takes precedence when the
+two statistics conflict) while `untested` has not occurred. They guard records
+assembled outside `curate_session`, which is worth keeping and worth stating.
 
 **A caveat that belongs with 5b/5c**: the threshold is a curve in spike count
 and it falls steeply — a pair with 200 spikes needs z > 21.9 to be declined, one
