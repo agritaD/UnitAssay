@@ -37,15 +37,12 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
-# RUNNING THE SORTER is not part of the post-Kilosort job, so kilosort and torch
-# are an extra rather than a dependency: `isolate/sorting/run_kilosort4.py`
-# imports them inside the function that needs them and raises with install
-# instructions, so the package imports and curates without either.
-sort = ["kilosort[gui]==4.0.22", "torch>=2.0"]
-# SpikeInterface's quality metrics are a COMPARISON path, not the tool's own.
-# `isolate/curation/si_quality_metrics.py` guards its imports and nothing in the
-# package imports that module.
-si = ["spikeinterface>=0.100", "pandas>=2.0"]
+# NO `sort` OR `si` EXTRA ANY MORE (2026-09-08). Both existed only to support
+# modules nothing in the package imported: a Kilosort driver and a
+# SpikeInterface quality-metric comparison. Running the sorter is a separate
+# program's job and Kilosort is GPL-3.0 against this package's MIT; the SI path
+# was a comparison for our own paper, not part of the tool. What is left is the
+# dependency list above and nothing else.
 
 [project.urls]
 Homepage = "https://github.com/agritaD/unitassay"

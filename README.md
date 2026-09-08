@@ -22,12 +22,13 @@ pip install -e .               # from a clone
 
 Python ≥ 3.10. No GPU. The sorter runs before this and is not included.
 
-Two optional extras, neither needed to curate:
+Seven dependencies, no extras: numpy, scipy, scikit-learn, h5py, diptest,
+click, pyyaml.
 
-```bash
-pip install 'unitassay[sort]'  # kilosort + torch, to run the sorter itself
-pip install 'unitassay[si]'    # spikeinterface, for its quality metrics
-```
+**The sorter is not included and is not driven from here.** unitassay takes a
+sorter's output directory. Kilosort is a separate program (and GPL-3.0, against
+this package's MIT); run it, and any preprocessing, from your own pipeline
+script.
 
 ## Use
 

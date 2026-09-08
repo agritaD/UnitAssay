@@ -21,7 +21,11 @@ logger = logging.getLogger(__name__)
 class Stage(str, Enum):
     """Pipeline stages (matches MATLAB pipeline_KS4)."""
 
-    KILOSORT = "kilosort"
+    # NO KILOSORT STAGE. unitassay is a POST-sorter tool: it takes a sorter's
+    # output directory. Running the sorter was removed in 2026-09-08 -- it was
+    # opt-in and already excluded from DEFAULT_STAGES, so nothing depended on
+    # it, and Kilosort is GPL-3.0 while this package is MIT. A sorter is a
+    # separate program; drive it from a pipeline script, not from in here.
     EXTRACT = "extract"
     ISOLATION = "isolation"
     CURATION = "curation"
@@ -30,7 +34,8 @@ class Stage(str, Enum):
 
 ALL_STAGES = list(Stage)
 
-# Default stages: EXTRACT through ISO_UNITS (skip KILOSORT)
+# Every stage is a default now that the sorter is gone; the list is kept so a
+# caller can still run a subset.
 DEFAULT_STAGES = [Stage.EXTRACT, Stage.ISOLATION, Stage.CURATION, Stage.ISO_UNITS]
 
 
@@ -80,16 +85,6 @@ class Pipeline:
         ))
 
         # Stage 0: Kilosort4
-        if Stage.KILOSORT in active_stages:
-            logger.info("--- Stage 0: Running Kilosort4 ---")
-            if bin_file is None:
-                raise ValueError(
-                    "bin_file must be provided when running KILOSORT stage"
-                )
-            from unitassay.isolate.sorting.run_kilosort4 import run_kilosort4
-            run_kilosort4(cfg, str(bin_file), ks_dir)
-            logger.info("--- Kilosort4 complete ---")
-
         # Stage 1: Spike extraction
         if Stage.EXTRACT in active_stages:
             logger.info("--- Stage 1: Extracting spikes ---")
