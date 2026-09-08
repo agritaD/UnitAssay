@@ -22,11 +22,34 @@ pip install -e .               # from a clone
 
 Python ≥ 3.10. No GPU. The sorter runs before this and is not included.
 
+Two optional extras, neither needed to curate:
+
+```bash
+pip install 'unitassay[sort]'  # kilosort + torch, to run the sorter itself
+pip install 'unitassay[si]'    # spikeinterface, for its quality metrics
+```
+
 ## Use
+
+One recording:
 
 ```bash
 unitassay run --ks-dir /path/to/kilosort_output --out /path/to/results
 ```
+
+Many, with one output subdirectory each:
+
+```bash
+unitassay batch --sessions sessions.tsv --out /path/to/results --n-jobs 6
+```
+
+`sessions.tsv` is `name<TAB>ks_dir`, one recording per line, `#` for comments.
+The corpus manifest is an input rather than something the tool knows, so it runs
+on your recordings without being told about them in code.
+
+A batch resumes, and the resume will not serve a stale result: a stored
+`curated.json` is trusted only if it records **this** version of unitassay and
+its isolation files are still beside it. Anything else is recomputed.
 
 ```python
 from unitassay import curate
