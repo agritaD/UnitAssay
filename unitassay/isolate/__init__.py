@@ -1,0 +1,26 @@
+"""unitassay.isolate — per-frame isolation quality for sorted units.
+
+Authors: Agrita Dubey, Qiao (Betty) Xu
+Developed with Claude (Anthropic).
+
+For each cluster, computes the L-ratio against a shape-dissimilar REFERENCE
+channel and against each neighbouring cluster, separately in each drift frame,
+and writes one SortData.h5 per cluster. `unitassay.curate` reads those files.
+
+Also carries spike extraction, format conversion and cross-recording stitching,
+which `unitassay.link` will build on.
+
+Previously developed under the internal name `mind_snag`; the module was renamed
+on publication. The pipeline, config keys and file formats are unchanged.
+
+Authors: Agrita Dubey, Qiao (Betty) Xu
+Developed with Claude (Anthropic).
+Part of unitassay. Licence: MIT.
+"""
+
+__version__ = "2.0.0"
+
+from unitassay.isolate.config import MindSnagConfig
+from unitassay.isolate.pipeline import Pipeline
+
+__all__ = ["MindSnagConfig", "Pipeline", "__version__"]
