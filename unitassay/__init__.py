@@ -15,7 +15,7 @@ writes the standard Phy-style arrays):
     link      matching the same unit across recordings              (in progress)
 
     >>> from unitassay import curate
-    >>> rows = curate.curate_session(ks4_dir, mindsnag_subdir='isolate_out')
+    >>> rows = curate.curate_session(ks4_dir, isolation_dir='isolation')
 
 WHAT THIS TOOL CLAIMS, AND WHAT IT DOES NOT. On a synthetic corpus with ground
 truth it reaches 83.7% balanced accuracy (sensitivity 81.3, specificity 86.1)

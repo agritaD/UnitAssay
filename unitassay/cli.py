@@ -86,7 +86,7 @@ def run_session(ks_dir, out_dir, window_sec=WINDOW_SEC, n_threads=N_THREADS,
     t0 = time.perf_counter()
     # the ABSOLUTE path, not just the name: isolation lives under --out, which
     # is not required to be anywhere near --ks-dir
-    rows = curate_session(ks_dir, mindsnag_subdir=str(iso))
+    rows = curate_session(ks_dir, isolation_dir=str(iso))
     timing['curate_sec'] = round(time.perf_counter() - t0, 1)
     timing['n_clusters'] = len(rows)
     # sum the NAMED stages: a loop over every key ending in `_sec` also catches

@@ -41,11 +41,11 @@ from pathlib import Path
 from unitassay.curate.lratio import ms_l_ratio
 
 
-def sortdata_path(ks4_path, clu_id, mindsnag_subdir='mindsnag'):
+def sortdata_path(ks4_path, clu_id, isolation_dir='isolation'):
     """Path to clu_id's (0-indexed) SortData.h5 file. The ONE place ms_id
     = clu_id + 1 is computed for building this specific filename."""
     ms_id = clu_id + 1
-    return Path(ks4_path) / mindsnag_subdir / f'{ms_id}.SortData.h5'
+    return Path(ks4_path) / isolation_dir / f'{ms_id}.SortData.h5'
 
 
 def noise_channel(templates, pc_feat_ind, clu_id):
@@ -57,7 +57,7 @@ def noise_channel(templates, pc_feat_ind, clu_id):
     return int(local_chs[np.argmin(energies)])
 
 
-def load_ms_frames(ks4_path, clu_id, mindsnag_subdir='mindsnag'):
+def load_ms_frames(ks4_path, clu_id, isolation_dir='isolation'):
     """Load all frames of clu_id's (0-indexed) SortData.h5, computing
     per-frame noise/neighbor L-ratios (curate.lratio.ms_l_ratio, unit as
     reference) along the way.
@@ -77,7 +77,7 @@ def load_ms_frames(ks4_path, clu_id, mindsnag_subdir='mindsnag'):
                        'others' (list of (n_spikes, n_pc) arrays, one per
                        neighbor, len == len(other_clu_ids))
     """
-    sf = sortdata_path(ks4_path, clu_id, mindsnag_subdir)
+    sf = sortdata_path(ks4_path, clu_id, isolation_dir)
     if not sf.exists():
         return None
     try:

@@ -2,7 +2,7 @@
 """curate/curation.py — the toolbox entry point. ONE wrapper, one pipeline.
 
     from unitassay.curate.curation import curate_session
-    rows = curate_session(ks4_dir, mindsnag_subdir='mindsnag_dev_w100')
+    rows = curate_session(ks4_dir, isolation_dir='isolation')
 
 WHY THIS EXISTS
 ---------------
@@ -62,6 +62,8 @@ Part of unitassay. Licence: MIT.
 """
 import json
 from pathlib import Path
+
+import warnings
 
 import numpy as np
 
@@ -180,20 +182,40 @@ def _split_time_auc(proj, t_ms):
     return float(abs(u / (g.sum() * (~g).sum()) - 0.5) + 0.5)
 
 
-def curate_session(ks4_dir, mindsnag_subdir='mindsnag', cluster_ids=None,
-                   duration_sec=None, with_redetection=True, verbose=False):
+def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
+                   duration_sec=None, with_redetection=True, verbose=False,
+                   mindsnag_subdir=None):
     """Curate one sorted session. Returns one dict per cluster.
 
     ks4_dir           KS4 output directory (spike_times/clusters, pc_features,
                       templates, channel_positions, params.py)
-    mindsnag_subdir   name of the mind_snag output directory SIBLING to
-                      ks4_dir's parent, as sortdata_path expects
+    isolation_dir     where the isolate layer's SortData.h5 files are. An
+                      ABSOLUTE PATH is the safe form and is what the CLI passes;
+                      a bare NAME asks this function to search beside and inside
+                      ks4_dir, and it refuses when both exist rather than
+                      preferring one.
     cluster_ids       restrict to these (0-indexed KS4 ids); default all with
                       a SortData file
     duration_sec      recording length. Defaults to the last spike time, which
                       is what the satellite-rate test needs — omitting it once
                       disabled that test entirely on real data.
+    mindsnag_subdir   DEPRECATED alias for isolation_dir, kept because callers
+                      outside this package still pass it.
+
+    THE DEFAULT CHANGED WITH THE NAME, from 'mindsnag' to 'isolation'. The
+    layer is called `isolate` and its CLI writes to `isolation/`, so the old
+    default named a directory this package never creates. A caller relying on
+    the old default was depending on a lab layout, not on the tool.
     """
+    if mindsnag_subdir is not None:
+        # NOT silently accepted: the two names would otherwise disagree about
+        # the default, and a caller passing the old one would get 'isolation'
+        # searched for while believing it had asked for something else.
+        warnings.warn('curate_session(mindsnag_subdir=) is deprecated; use '
+                      'isolation_dir=. The isolate layer replaced mind_snag '
+                      'and the default is now "isolation".',
+                      DeprecationWarning, stacklevel=2)
+        isolation_dir = mindsnag_subdir
     # clus_channel_info is mind_snag's, so it stays a deferred import -- the
     # dev tree is not always on sys.path and only this function needs it.
     # NO PIN NEEDED HERE. In the lab tree this import had to force a specific
@@ -216,11 +238,11 @@ def curate_session(ks4_dir, mindsnag_subdir='mindsnag', cluster_ids=None,
     # writes isolation under --out, which need not be anywhere near --ks-dir.
     # Without this branch the two disagreed about where the files were and the
     # run died after the isolate stage had already done all its work.
-    _sub = Path(mindsnag_subdir)
+    _sub = Path(isolation_dir)
     if _sub.is_absolute():
         if not _sub.is_dir():
             raise FileNotFoundError(f'no isolation directory at {_sub}')
-        root, mindsnag_subdir = _sub.parent, _sub.name
+        root, isolation_dir = _sub.parent, _sub.name
     else:
         # A BARE NAME ASKS THIS FUNCTION TO SEARCH, and searching is how a whole
         # 147-session run was curated from stale files on 2026-09-04: a
@@ -229,15 +251,15 @@ def curate_session(ks4_dir, mindsnag_subdir='mindsnag', cluster_ids=None,
         # had just written. It did not fail; it returned a complete, plausible
         # set of verdicts from the wrong data. So when both candidates exist,
         # refuse rather than prefer.
-        here, up = ks4 / mindsnag_subdir, ks4.parent / mindsnag_subdir
+        here, up = ks4 / isolation_dir, ks4.parent / isolation_dir
         if here.is_dir() and up.is_dir():
             raise FileNotFoundError(
-                f'{mindsnag_subdir!r} exists BOTH inside ({here}) and beside '
+                f'{isolation_dir!r} exists BOTH inside ({here}) and beside '
                 f'({up}) the sorter directory, so which one is meant is '
                 f'ambiguous. Pass an absolute path to say which.')
         if not (here.is_dir() or up.is_dir()):
             raise FileNotFoundError(
-                f'no {mindsnag_subdir!r} directory beside or inside {ks4}; '
+                f'no {isolation_dir!r} directory beside or inside {ks4}; '
                 'curating would silently return nothing')
         root = ks4 if here.is_dir() else ks4.parent
     fs = _sample_rate(ks4)
@@ -255,7 +277,7 @@ def curate_session(ks4_dir, mindsnag_subdir='mindsnag', cluster_ids=None,
     ids = sorted(set(sc.tolist())) if cluster_ids is None else list(cluster_ids)
     base, meta = {}, {}
     for clu in ids:
-        f = sortdata_path(root, clu, mindsnag_subdir)
+        f = sortdata_path(root, clu, isolation_dir)
         if not f.exists():
             continue
         ch = channel_fields(process_sortdata_all_frames(f))
@@ -333,7 +355,7 @@ def curate_session(ks4_dir, mindsnag_subdir='mindsnag', cluster_ids=None,
         # only clusters mind_snag blames on a NEIGHBOUR reach rule 5's retrieval
         if d.get('dominant_source') != 'other_cluster' or d.get('ms_pass'):
             continue
-        f = sortdata_path(root, clu, mindsnag_subdir)
+        f = sortdata_path(root, clu, isolation_dir)
         if not f.exists():
             continue
         fl, _all = flagged_neighbours(f)

@@ -54,7 +54,7 @@ its isolation files are still beside it. Anything else is recomputed.
 ```python
 from unitassay import curate
 
-rows = curate.curate_session(ks4_dir, mindsnag_subdir='isolation')
+rows = curate.curate_session(ks4_dir, isolation_dir='isolation')
 clean = [r for r in rows if r['outcome'] == 'clean']
 ```
 

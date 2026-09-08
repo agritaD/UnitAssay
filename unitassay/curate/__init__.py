@@ -4,7 +4,7 @@ Author: Agrita Dubey
 Developed with Claude (Anthropic).
 
     >>> from unitassay import curate
-    >>> rows = curate.curate_session(ks4_dir, mindsnag_subdir='isolate_out')
+    >>> rows = curate.curate_session(ks4_dir, isolation_dir='isolation')
 
 Each returned row carries three layers, which answer different questions and
 must not be collapsed:
