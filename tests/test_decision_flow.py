@@ -22,7 +22,9 @@ Part of unitassay. Licence: MIT.
 import pytest
 
 from unitassay.curate.constants import LOW_SPIKE_THRESHOLD
-from unitassay.curate.decision_flow import curate, rule_id, stage_of
+from unitassay.curate.decision_flow import (RULE_ID, RULE_TITLE, STAGE,
+                                            STAGE_QUESTION, curate, rule_id,
+                                            rule_label, stage_of)
 
 
 CASES = [
@@ -396,6 +398,53 @@ def test_rule_ids_are_canonical():
     assert rule_id('5-ccg') == '5b'
     assert rule_id('5-ccg-deficit') == '5c'
     assert rule_id('5-ccg-pending') == '5d'
+
+
+def test_every_row_carries_the_reader_facing_id():
+    """`rule` is the internal key; `rule_id` is what the README is indexed by.
+
+    They are NOT interchangeable and their numbers collide: legacy '2' is a
+    clean cluster while documented rule 2 is REFRACTORY. A row that carried only
+    the legacy id made a reader who trusted the rule table misread every one.
+    """
+    for record, _ in CASES:
+        got = curate(dict(record))
+        assert got['rule_id'] == rule_id(got['rule'])
+        assert got['rule_label'] == rule_label(got['rule'])
+        assert got['rule_label'].startswith(got['rule_id'])
+
+
+def test_the_collision_this_field_exists_for_is_real():
+    """A regression guard for the reason `rule_id` was added.
+
+    If these ever stop colliding, the legacy key has been renamed and the
+    README's warning about it should go too.
+    """
+    assert rule_id('2') == '7' and RULE_TITLE['7'] == 'CLEAN'
+    assert rule_id('0') == '2' and RULE_TITLE['2'] == 'REFRACTORY'
+    assert rule_id('R') == '1' and RULE_TITLE['1'] == 'IDENTITY'
+
+
+def test_the_two_naming_schemes_cannot_drift_apart():
+    """RULE_ID and STAGE must describe the same rules, and agree on the number.
+
+    Two hand-maintained tables over the same keys drift the moment a rule is
+    added to one of them. The canonical number IS the stage number, so that is
+    checkable rather than conventional.
+    """
+    assert set(RULE_ID) == set(STAGE)
+    for legacy, (rid, _what) in RULE_ID.items():
+        assert rid[0] == STAGE[legacy][0], legacy
+        assert rid[0] in RULE_TITLE, legacy
+        assert STAGE[legacy] in STAGE_QUESTION, legacy
+
+
+def test_an_unknown_rule_raises_rather_than_getting_a_default():
+    """A new rule must be placed in both tables deliberately."""
+    with pytest.raises(KeyError):
+        rule_id('9-invented')
+    with pytest.raises(KeyError):
+        stage_of('9-invented')
 
 
 def test_below_the_floor_nothing_is_flagged_for_review():

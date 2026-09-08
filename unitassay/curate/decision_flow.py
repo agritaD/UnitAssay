@@ -255,6 +255,21 @@ def curate(r):
             out['needs_inspection'] = False
     # ONE exit point, so the stage cannot disagree with the rule that set it
     out['stage'] = stage_of(out['rule'])
+    # THE READER-FACING ID, emitted alongside the internal one.
+    #
+    # `rule` is the LEGACY key and it stays, because 14 scripts select on it
+    # with startswith(). But it is not a name anybody should read: its numbers
+    # COLLIDE with the documented scheme -- legacy '2' is a clean cluster while
+    # documented rule 2 is REFRACTORY, legacy '1' is bimodality while documented
+    # rule 1 is IDENTITY, and identity and refractory are emitted as 'R' and
+    # '0'. A reader who trusted the rule table and then opened a row misread
+    # every one of them.
+    #
+    # So the canonical id and its label are written to the row too. They were
+    # computed all along and thrown away at the exit; nothing else changes, and
+    # `rule_id` is what the README's table is indexed by.
+    out['rule_id'] = rule_id(out['rule'])
+    out['rule_label'] = rule_label(out['rule'])
     return out
 
 

@@ -80,12 +80,21 @@ purpose — collapsing them is how a tool ends up asserting more than it measure
 
 ```python
 {'decision': 'FAIL',                    # keep or reject
- 'rule': '4', 'tag': 'confirmed_fail_within_cluster',
+ 'rule_id': '4a',                       # WHICH RULE — read this one
+ 'rule_label': '4a reference channel',  # and what it tested
+ 'stage': '4-contamination',            # where in the flow it stopped
+ 'tag': 'confirmed_fail_within_cluster',
  'sub_type': 'within_cluster_contamination',   # the MECHANISM — which test fired
  'outcome': 'oversplit',                       # the ERROR CLASS — what the cluster IS
  'findings': ['contaminated', 'refractory'],   # EVERY finding, not just the first
- 'not_run': []}                                # tests that could not run
+ 'not_run': [],                                # tests that could not run
+ 'rule': '4'}                           # INTERNAL KEY — see the note below
 ```
+
+> **Read `rule_id`, not `rule`.** `rule` is an internal key kept for backwards
+> compatibility, and its numbers do **not** match the table below: `rule: '2'`
+> is a clean cluster (rule 7), `rule: '0'` is refractory (rule 2), and identity
+> is `rule: 'R'`. `rule_id` is the id this document is indexed by.
 
 `sub_type` names the test. `outcome` names the cluster. The map between them is
 measured against ground truth, never assumed — `within_cluster_contamination`
@@ -94,16 +103,38 @@ implying it.
 
 ### The rules, in the order they are checked
 
-| | rule | asks | blind to |
-|---|---|---|---|
-| 1 | identity | already counted under another cluster? | nothing |
-| 2 | refractory | can one neuron have produced these spikes? | other clusters |
-| 3 | composition | two populations inside it? | other clusters, spike time |
-| 4 | contamination | polluted by something this cluster alone can see? | **other clusters** |
-| 5 | neighbour | separable from the neighbours it is tested against? | unflagged neighbours |
-| 6 | unresolved | could it be tested at all? | everything else |
-| 7 | clean | nothing found | — |
-| 8 | fall-through | failed upstream, nothing attributed it | why |
+The number is **position in the flow**; the letter is **which test within that
+rule**, lettered in firing order. A rule with one test has no letter. This is
+the `rule_id` on every row.
+
+| `rule_id` | rule | the test | asks | blind to |
+|---|---|---|---|---|
+| `1` | IDENTITY | overlap and lag | already counted under another cluster? | nothing |
+| `2` | REFRACTORY | refractory ratio | can one neuron have produced these spikes? | other clusters |
+| `3a` | COMPOSITION | bimodality | two populations inside it? | other clusters, spike time |
+| `3b` | COMPOSITION | time-ordered split | do the two halves separate in TIME? (drift) | other clusters |
+| `4a` | CONTAMINATION | reference channel | polluted by something this cluster alone can see? | **other clusters** |
+| `4b` | CONTAMINATION | evidence incomplete | — the test could not run | — |
+| `5a` | NEIGHBOUR | feature space | separable from the neighbours it is tested against? | unflagged neighbours |
+| `5b` | NEIGHBOUR | coincidence excess | do the two fire together more than chance? (re-detection) | — |
+| `5c` | NEIGHBOUR | refractory deficit | *less* than chance? (one neuron's own refractory period) | — |
+| `5d` | NEIGHBOUR | evidence incomplete | — the test could not run | — |
+| `6` | UNRESOLVED | no verdict | could it be tested at all? | everything else |
+| `7` | CLEAN | all rules passed | nothing found | — |
+| `8` | FALL-THROUGH | unattributed | failed upstream, nothing attributed it | why |
+
+**5b and 5c are the only tests in the table that are not feature space**, and
+that is deliberate. Scored against per-pair ground truth, the feature-space
+statistics are at chance for "one neuron or two" — dip AUC 0.496, L-ratio 0.503,
+and a cross-validated linear discriminant 0.503, which is the ceiling for that
+family. The cause is circularity: they ask whether two clouds separate in PC
+space, and the sorter guaranteed that when it drew the boundary. Spike timing is
+not party to that decision, so it can corroborate independently.
+
+**A caveat that belongs with 5b/5c**: the threshold is a curve in spike count
+and it falls steeply — a pair with 200 spikes needs z > 21.9 to be declined, one
+with 20,000 needs z > 3.4. On small clusters the time-domain test has little
+power, so a `5a` retrieval there rests on the feature-space evidence alone.
 
 Each rule is named for **what it can see**, not for what it proves. Rule 4
 compares a cluster to a reference *channel* and never looks at another cluster,
