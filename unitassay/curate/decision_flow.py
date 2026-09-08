@@ -449,101 +449,26 @@ def _apply_rules(r):
                 'tag': 'redundant_re_detection', 'rule': 'R',
                 'redundant_of': redundant_of}
 
-    # Rules 7/8: LDL ambiguous/untested -> defer to ms_pass. Rule 7
-    # (ambiguous) is no longer flagged for human review (2026-07-31,
-    # Agrita's call) -- the row-6 dip_unimodal_lratio_sep sub-pattern
-    # already got pulled out as a real overmerge finding (see
-    # m260731_reclassify_ambiguous_row6.py, ldl_verdict patched to
-    # 'overmerged' upstream of this function so those clusters are caught by
-    # rule 1 above and never reach this branch at all), and ISI-VR-failing
-    # cases are already gone via rule 0 above -- what's left is treated as
-    # curated, not open for review. Rule 8 (untested) still flags: unlike
-    # ambiguous, there's no equivalent secondary signal (like L-ratio's
-    # row-6) that's already been used to resolve the remaining population.
-    if v == 'ambiguous':
-        if ms_pass:
-            return {'decision': 'PASS', 'needs_inspection': False,
-                    'tag': 'flagged_ambiguous_ldl', 'rule': '7'}
-        # FAIL side. An LDL NON-ANSWER must not outrank a channel that did
-        # answer (#44, 2026-08-20). Previously every one of these was filed as
-        # `ambiguous_deferred`, which reads as "we do not know why it failed" --
-        # but all 408 of them also fail the mind_snag L-ratio channel, so we do
-        # know. That is the affirmative-channel principle applied to
-        # ATTRIBUTION rather than to passing.
-        #
-        # RETRIEVALS ARE DELIBERATELY UNREACHABLE HERE. Rules 3 and 5 can turn a
-        # noise/neighbour failure into a PASS, but both presuppose an
-        # affirmative CLEAN LDL verdict, which `ambiguous` is precisely not.
-        # Allowing them would move 107 clusters FAIL->PASS on the strength of a
-        # test that declined to answer. Every branch below is FAIL, so the
-        # DECISION is identical to the old single-line version by construction
-        # and only the attribution changes.
-        dom = r.get('dominant_source')
-        if dom == 'noise':
-            return {'decision': 'FAIL', 'needs_inspection': False,
-                    'tag': 'confirmed_fail_within_cluster', 'rule': '7-within'}
-        if dom == 'other_cluster':
-            # ONLY when the between-cluster test AGREES the pair overlaps.
-            # `confirmed_fail_neighbor_real` maps to `neighbor_indistinguishable`,
-            # which asserts a specific finding -- and of the 95 candidates here,
-            # 60 have between_cluster_confirmed_separated=True, i.e. the test
-            # says the OPPOSITE. Tagging those indistinguishable would assert
-            # something the evidence contradicts, so they stay deferred. The 24
-            # with None were never adjudicated and stay deferred too.
-            # (Those 60 are a real conflict -- the L-ratio blames a neighbour the
-            # between test says is separated -- and deserve their own resolution
-            # rather than being quietly absorbed here.)
-            if r.get('between_cluster_confirmed_separated') is False:
-                return {'decision': 'FAIL', 'needs_inspection': False,
-                        'tag': 'confirmed_fail_neighbor_real', 'rule': '7-neighbor'}
-            # #45, RESOLVED 2026-08-21. The 60 clusters where mind_snag blames a
-            # neighbour our between test finds SEPARATED. Until now they failed
-            # here as `flagged_ambiguous_ldl` while the SAME conflict with a
-            # clean LDL verdict was retrieved by rule 5 -- so a within-cluster
-            # verdict, which says nothing about the neighbour, decided the
-            # outcome. Measured: on every neighbour statistic these 60 are
-            # indistinguishable from the rule-5 retrievals (absent_frame_frac
-            # p=0.14, clean_frac_when_present p=0.10, lr_other_max p=0.31,
-            # n_spikes p=0.12).
-            #
-            # WHY THIS IS NOT #44 BEING REVERSED. #44 blocked retrievals here
-            # because an LDL NON-ANSWER must not outrank a channel that did
-            # answer. That still holds -- and this retrieval does not rest on the
-            # LDL. It rests on the between test's own AFFIRMATIVE finding that
-            # the accused pair is separated, which is exactly the distinction
-            # #48 drew when it declined to gate rule 5 on ldl_adjudicated. The
-            # ambiguous verdict is not evidence about the neighbour either way.
-            #
-            # AND `ambiguous` IS ALREADY TREATED AS NOT-A-FAILURE-REASON by this
-            # same rule: 347 ambiguous clusters PASS above when ms_pass is True.
-            # Failing these while passing those was the inconsistency.
-            #
-            # The within-cluster picture also favours clean, not overmerged:
-            # `ambiguous` here means the dip fired and the within L-ratio did
-            # not, and the dip ALONE carries 12-13% type-1 at these sizes
-            # (m260821_dip_null_below_floor.py, median 652 spikes), while Phase 5
-            # found the L-ratio right 256:6 in precisely these disagreements.
-            #
-            # Gated on ALL accusers, exactly as rule 5 now is (#14) -- retrieving
-            # on the loudest accuser alone is the defect that fix removed, and it
-            # must not re-enter through this branch.
-            if r.get('between_cluster_confirmed_separated') is True:
-                _all = r.get('between_all_neighbours_separated', _MISSING)
-                assert _all is not _MISSING, (
-                    'curate(): between_all_neighbours_separated is required to '
-                    'retrieve on the ambiguous branch too (#45/#14) -- enrich '
-                    'the record, do not assume the quieter accusers are clean.')
-                if _all is True:
-                    return {'decision': 'PASS', 'needs_inspection': False,
-                            'tag': 'retrieved_neighbor_confirmed',
-                            'rule': '7-neighbor-retrieved'}
-                if _all is False:
-                    return {'decision': 'FAIL', 'needs_inspection': False,
-                            'tag': 'confirmed_fail_neighbor_real',
-                            'rule': '7-neighbor-all'}
-        # nothing positive to attribute to -- genuinely deferred
-        return {'decision': 'FAIL', 'needs_inspection': False,
-                'tag': 'flagged_ambiguous_ldl', 'rule': '7'}
+    # THE `ambiguous` BRANCH WAS DELETED (2026-09-08), not disabled.
+    #
+    # It handled the case where the LDL test's two statistics contradict each
+    # other, and it became unreachable on 2026-09-03 when that conflict was
+    # resolved in favour of the L-ratio: `_apply_rules` now remaps
+    # `ambiguous` -> `not_overmerged` at its first line, so nothing arrives
+    # here. Measured: the branch took 1,644 clusters on the 2026-08-31 run and
+    # ZERO on both corpora after the fix -- 53,428 real clusters and 7,925
+    # synthetic ones.
+    #
+    # It is deleted rather than kept as a guard because it could return a PASS
+    # (`flagged_ambiguous_ldl` with ms_pass), and unreachable code that can pass
+    # a cluster is the kind of thing that gets re-enabled by accident. Its
+    # sub-branches -- `7-within`, `7-neighbor`, `7-neighbor-retrieved`,
+    # `7-neighbor-all`, carrying the #44 and #45 reasoning -- go with it; the
+    # argument survives in git history and in RULE_ID, which still decodes those
+    # ids so archived runs can be read.
+    #
+    # Rule 8 (`untested`) is NOT affected and stays: unlike ambiguous, there is
+    # no secondary signal that has already resolved that population.
     if v == 'untested':
         return {'decision': 'PASS' if ms_pass else 'FAIL', 'needs_inspection': True,
                 'tag': 'flagged_untested_ldl', 'rule': '8'}

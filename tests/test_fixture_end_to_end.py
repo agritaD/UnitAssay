@@ -51,26 +51,26 @@ def test_the_fixture_is_complete():
 def result(tmp_path_factory):
     from unitassay.cli import run_session
     out = tmp_path_factory.mktemp('run')
-    rows, timing = run_session(FIXTURE, out)
-    return {r['clu_id']: r for r in rows}, timing, out
+    rows, timing, pairs = run_session(FIXTURE, out)
+    return {r['clu_id']: r for r in rows}, timing, out, pairs
 
 
 def test_isolation_was_written(result):
     """isolate really ran: one SortData file per cluster, beside the verdicts."""
-    _rows, timing, out = result
+    _rows, timing, out, _pairs = result
     assert timing['isolation_reused'] is False
     assert len(list((out / 'isolation').glob('*.SortData.h5'))) == len(GOLDEN)
 
 
 def test_every_cluster_is_curated(result):
-    rows, timing, _out = result
+    rows, timing, _out, _pairs = result
     assert set(rows) == set(GOLDEN)
     assert timing['n_clusters'] == len(GOLDEN)
 
 
 @pytest.mark.parametrize('clu', sorted(GOLDEN))
 def test_verdict_is_unchanged(result, clu):
-    rows, _timing, _out = result
+    rows, _timing, _out, _pairs = result
     n, decision, rid, stage, outcome = GOLDEN[clu]
     r = rows[clu]
     assert r['n_spikes'] == n
@@ -87,7 +87,7 @@ def test_the_refractory_violator_is_the_one_that_fails(result):
     containing violations -- and the two are worth telling apart, so the rate is
     asserted rather than just the verdict.
     """
-    rows, _timing, _out = result
+    rows, _timing, _out, _pairs = result
     failed = [c for c, r in rows.items() if r['decision'] == 'FAIL']
     assert failed == [2]
     assert rows[2]['isi_rate'] > 0.05
@@ -96,8 +96,28 @@ def test_the_refractory_violator_is_the_one_that_fails(result):
 
 def test_rows_carry_the_reader_facing_fields(result):
     """What a user reads off a row, on a real run rather than a synthetic record."""
-    rows, _timing, _out = result
+    rows, _timing, _out, _pairs = result
     for r in rows.values():
         for f in ('decision', 'rule_id', 'rule_label', 'stage', 'tag',
                   'outcome', 'sub_type', 'findings', 'n_spikes'):
             assert f in r, f
+
+
+def test_the_pairwise_view_is_emitted(result):
+    """curate() decides per cluster; duplication is a property of a pair.
+
+    The fixture's four clusters are built far apart and share no spikes, so the
+    honest expectation here is ZERO pairs -- which still exercises the code path
+    and pins the contract. A fixture that started producing pairs would mean the
+    clusters stopped being independent.
+    """
+    _rows, timing, _out, pairs = result
+    from unitassay.curate import summarise_pairs
+    assert timing['n_pairs'] == len(pairs)
+    s = summarise_pairs(pairs)
+    assert set(s) >= {'n_pairs', 'by_mechanism', 'n_both_pass',
+                      'n_action_review', 'n_action_drop'}
+    for p in pairs:
+        assert p['a'] < p['b'], 'pairs must be canonically ordered'
+        assert p['channel'] in ('re_detection', 'neighbour')
+        assert p['action'] in ('none', 'review_pair', 'drop_a', 'drop_b')

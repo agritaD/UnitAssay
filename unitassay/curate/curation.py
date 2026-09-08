@@ -298,7 +298,7 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
         base[clu] = d
 
     # --- re-detection, two passes (see module docstring) ---------------------
-    verdicts, scanned = {}, set()
+    verdicts, scanned, overlap_pairs = {}, set(), {}
     if with_redetection and base:
         try:
             scan = RD.scan_session(np.load(ks4 / 'templates.npy'), st_ms, sc,
@@ -309,6 +309,27 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
             verdicts = RD.redundancy_verdicts(scan, thr,
                                               lambda x: bool(rule1.get(x)))
             scanned = {sv['clu'] for sv in scan}
+            # KEEP EVERY HIGH-OVERLAP PAIR, not only the ones the criterion
+            # flagged. `is_redetection_pair` is a CONJUNCTION -- overlap AND a
+            # non-zero lag -- and on real data 98.6% of pairs over the overlap
+            # floor fail the lag half (23,956 measured corpus-wide, 331 over the
+            # gate). Discarding them here is why a pair that shares most of one
+            # cluster's spikes can leave no trace in the output at all: 275 such
+            # pairs have BOTH members passing.
+            #
+            # Retaining them asserts nothing. The lag requirement is what makes
+            # the criterion mean "re-detection" rather than "these two fire
+            # together", and it stays exactly as it was -- these rows carry the
+            # measurement and say the criterion was not met, which is a
+            # different statement from silence.
+            for sv in scan:
+                keep = [dict(other=int(b), overlap=float(oab),
+                             overlap_other=float(oba), lag_ms=float(lag),
+                             over_lag_gate=bool(abs(lag) > RD.LAG_MIN_MS))
+                        for b, oab, oba, _nb, _amp, lag in sv['pairs']
+                        if max(oab, oba) >= RD.OVERLAP_FLOOR]
+                if keep:
+                    overlap_pairs[sv['clu']] = keep
         except Exception as e:
             # LOUD, not silent. A failed scan means rule R cannot fire, which is
             # exactly the "absent is not negative" failure this module documents.
@@ -393,7 +414,8 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
     rows = []
     for clu, d in base.items():
         partner = verdicts.get(clu) if clu in scanned else None
-        row = dict(d, redundant_of=None if partner is None else int(partner))
+        row = dict(d, redundant_of=None if partner is None else int(partner),
+                   overlap_pairs=overlap_pairs.get(clu, []))
         # `meta` is the `_`-prefixed diagnostics only, and curate() reads none of
         # them, so merging it before the verdict cannot change a decision.
         row.update(meta.get(clu, {}))

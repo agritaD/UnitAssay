@@ -77,7 +77,7 @@ def _one(args):
             pass
         done.unlink()            # unreadable, from another version, or isolation gone
     try:
-        rows, timing = run_session(ks_dir, dest, window_sec, n_threads)
+        rows, timing, pairs = run_session(ks_dir, dest, window_sec, n_threads)
     except Exception as e:
         dest.mkdir(parents=True, exist_ok=True)
         (dest / 'error.json').write_text(json.dumps(
@@ -88,6 +88,10 @@ def _one(args):
     done.write_text(json.dumps(
         {'version': __version__, 'session': name, 'ks_dir': str(ks_dir),
          'timing': timing, 'rows': rows}, default=float))
+    from unitassay.curate import summarise_pairs
+    (dest / 'pairs.json').write_text(json.dumps(
+        {'session': name, 'summary': summarise_pairs(pairs), 'pairs': pairs},
+        default=float))
     return name, timing, 'ok'
 
 

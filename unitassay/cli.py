@@ -66,7 +66,7 @@ def run_session(ks_dir, out_dir, window_sec=WINDOW_SEC, n_threads=N_THREADS,
     files are DELETED before the stage runs, so a timing cannot silently
     describe a cache.
     """
-    from unitassay.curate import curate_session
+    from unitassay.curate import curate_session, pair_findings
 
     ks_dir, out_dir = Path(ks_dir), Path(out_dir)
     iso = out_dir / 'isolation'
@@ -88,12 +88,18 @@ def run_session(ks_dir, out_dir, window_sec=WINDOW_SEC, n_threads=N_THREADS,
     # is not required to be anywhere near --ks-dir
     rows = curate_session(ks_dir, isolation_dir=str(iso))
     timing['curate_sec'] = round(time.perf_counter() - t0, 1)
+    # THE PAIRWISE VIEW, derived from the rows -- no new statistic, no verdict
+    # changed. curate() decides per cluster, but duplication and over-splitting
+    # are properties of a pair, and a per-cluster output under-reports them by
+    # construction. See curate/pairs.py.
+    pairs = pair_findings(rows)
+    timing['n_pairs'] = len(pairs)
     timing['n_clusters'] = len(rows)
     # sum the NAMED stages: a loop over every key ending in `_sec` also catches
     # `window_sec`, which is config, and inflates the total by 100
     timing['total_sec'] = round(sum(timing.get(k) or 0.0
                                     for k in ('isolate_sec', 'curate_sec')), 1)
-    return rows, timing
+    return rows, timing, pairs
 
 
 def main(argv=None):
@@ -127,18 +133,26 @@ def main(argv=None):
                             log=lambda m: print(m, flush=True))
         return 0 if summary['n_failed'] == 0 else 1
 
+    from unitassay.curate import summarise_pairs
+
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
-    rows, timing = run_session(a.ks_dir, out, a.window_sec, a.n_threads,
-                               reuse_isolation=a.reuse_isolation)
+    rows, timing, pairs = run_session(a.ks_dir, out, a.window_sec, a.n_threads,
+                                      reuse_isolation=a.reuse_isolation)
     (out / 'curated.json').write_text(json.dumps(
         {'ks_dir': str(a.ks_dir), 'timing': timing, 'rows': rows}, default=float))
+    (out / 'pairs.json').write_text(json.dumps(
+        {'ks_dir': str(a.ks_dir), 'summary': summarise_pairs(pairs),
+         'pairs': pairs}, default=float))
     from collections import Counter
     c = Counter(r_['decision'] for r_ in rows)
     print(f"{timing['n_clusters']} clusters   "
           f"PASS {c['PASS']}  FAIL {c['FAIL']}")
     print(f"isolate {timing['isolate_sec']}s   curate {timing['curate_sec']}s   "
           f"total {timing['total_sec']}s")
-    print(f"-> {out / 'curated.json'}")
+    ps = summarise_pairs(pairs)
+    print(f"{ps['n_pairs']} pairs   {ps['n_both_pass']} with both members PASS"
+          f"   {ps['n_action_review']} to review")
+    print(f"-> {out / 'curated.json'}\n-> {out / 'pairs.json'}")
     return 0
 
 

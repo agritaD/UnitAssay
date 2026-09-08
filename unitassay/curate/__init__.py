@@ -22,6 +22,7 @@ Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 from .curation import curate_session, cluster_inputs      # noqa: F401
+from .pairs import pair_findings, summarise as summarise_pairs  # noqa: F401
 from .decision_flow import curate, rule_label, rule_id     # noqa: F401
 from .findings import findings, outcome                    # noqa: F401
 from .taxonomy import classify, classify_all, curate_and_classify   # noqa: F401
