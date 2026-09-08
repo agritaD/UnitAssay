@@ -47,7 +47,7 @@ def run(
     stages: tuple[str, ...] | None,
     verbose: bool,
 ) -> None:
-    """Run the spike sorting pipeline."""
+    """Run the isolation pipeline over a sorter's output."""
     _setup_logging(verbose)
 
     from unitassay.isolate.config import IsolateConfig
