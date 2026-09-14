@@ -1,6 +1,6 @@
 # unitassay
 
-**Measure, curate and link spike-sorted units — and say which ones it cannot decide.**
+**Measure and curate spike-sorted units — and say which ones it cannot decide.**
 
 `unitassay` runs after a spike sorter. It scores how well each cluster is
 isolated, decides which clusters are usable, and names *what is wrong* with the
@@ -155,7 +155,75 @@ channel can be added without changing the contract.
 |---|---|---|
 | `isolate` | per-frame L-ratio of each unit against a shape-dissimilar reference channel and against each neighbouring cluster | ✅ |
 | `curate` | eight rules that decide keep/reject, a taxonomy naming the mechanism, and a findings layer naming the error class | ✅ |
-| `link` | matching the same unit across recordings | in progress |
+| `drift` | quantify and calibrate the probe motion KS4 reports, and **flag a KS4 bug that silently distorts it on multi-bank probes** | bug flag ✅, rest specified |
+
+### The KS4 bug layer 3 exists to catch
+
+**KS4 splits its drift blocks by depth BIN INDEX, with no reference to the
+channel map.** On a multi-bank probe some blocks therefore land in the dead gap
+between banks, where there are no recording sites at all. Those blocks still
+report a number — but it is **interpolation plus noise, not measurement**: a gap
+block tracks the mean of its two neighbours at r = 0.742, running 1.26x above it.
+
+Measured against known truth, on recordings where the probe was verifiably
+stationary: gap blocks report **1.67 um against 0.33 um for populated blocks on
+the same recordings — 5.0x, with a true drift of exactly ZERO.** On the real
+147-session corpus the same contrast is 9.46 vs 6.88 um (paired within session,
+Wilcoxon p = 0.002), and **72 of 147 recordings have a bank gap.**
+
+A user who runs KS4 on a multi-bank probe today gets that distortion folded
+silently into `ops['dshift']` with no warning. **This part is built:**
+
+```python
+from unitassay.drift import gap_blocks
+rep = gap_blocks.exclude_gap_blocks('/path/to/ks4_output')
+rep['range_90_gap_excluded']  # populated blocks only — the number to report
+rep['range_90_all_blocks']    # what KS4's own blocks give
+rep['gap_block_ratio']        # all_blocks / gap_excluded — a RATIO, not a direction
+```
+
+```
+$ python -m unitassay.drift /path/to/ks4_output
+200707/group001_CatGT_KS4_...  2-bank  2 GAP block(s) at [5, 6]
+                               range_90 3.13 -> 3.21 um  (DEFLATED 0.98x)
+```
+
+A block is called a gap block when its extent holds under 25% of the mean
+per-block channel count — read from the channel map, never assumed from the bank
+count, so a single-bank probe correctly finds none. Validated against the
+147-session analysis: **147/147 sessions agree**, same 51 gap sessions.
+
+**It does not always read high.** Of those 51, the correction moves the session
+value down in 37 and up in 14: the bug injects an unanchored
+interpolation-plus-noise term that usually, but not always, exceeds the true
+local drift.
+
+**EXCLUSION IS NOT A FIX, and the function is named for what it does.** Dropping
+the affected blocks leaves the drift over the gap NOT MEASURED rather than
+measured correctly — defensible, since there are no electrodes there to measure
+from, but it is not a repair. It cannot be one: reconstructing what those blocks
+should have read would need the drift fingerprint they were estimated from, and
+KS4 does not retain it.
+
+**Bug 5 itself remains unfixed.** Fixing it means patching KS4 — making the
+`ifirst` block split in `datashift.py` channel-map aware, so blocks are laid over
+populated depth ranges — and then re-sorting. We have not done that.
+
+The bug, the calibration and the algorithm are written up in the
+SpikeSortingPaper research repository (`docs/KiloSort4_Bugs_Fixed.md`,
+`docs/layer3_drift_spec.md`); they will be summarised here when the layer
+is built.
+
+**Layer 3 was `link` — matching the same unit across recordings — and it is not
+that any more.** Measured 2026-09-11: concatenating two consecutive recordings
+and sorting once costs nothing at the join (largest step 4.50 um, under the same
+recording's own batch-to-batch variation; clusters spanning the boundary pass
+curation at the same rate), and it removes the duplicate identities a matcher
+would otherwise have to rediscover — 2,477 clusters sorted separately collapse to
+1,377 sorted together. **So: concatenate, do not stitch.** The slot is reused for
+drift, which is where the measurements actually landed. The `link/`
+directory is still an empty placeholder, and the specification lives in the
+research repository rather than here.
 
 ## What a row tells you
 

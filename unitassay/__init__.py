@@ -1,4 +1,4 @@
-"""unitassay — measure, curate and link spike-sorted units.
+"""unitassay — measure and curate spike-sorted units.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
 Developed with Claude (Anthropic).
@@ -12,7 +12,22 @@ writes the standard Phy-style arrays):
               cluster, written as one SortData.h5 per cluster
     curate    eight rules that decide keep/reject, a taxonomy that names the
               mechanism, and a findings layer that names the ERROR CLASS
-    link      matching the same unit across recordings              (in progress)
+    drift     quantify and calibrate the drift KS4 reports, and FLAG A KS4 BUG:
+              KS4 splits its drift blocks by depth BIN INDEX with no reference
+              to the channel map, so on a multi-bank probe blocks land in the
+              dead gap between banks and report interpolation, not measurement
+              — 5.0x inflation with a true drift of exactly ZERO, affecting 72
+              of our 147 recordings.  gap_blocks.detect and
+              gap_blocks.exclude_gap_blocks are BUILT and reproduce the
+              147-session analysis 147/147. They EXCLUDE the affected
+              blocks; they do not repair the bug, which needs a KS4 patch
+              and a re-sort. The rest of the layer is specified only
+
+    The third slot was `link` (matching units across recordings) until
+    2026-09-11, when concatenating consecutive recordings was measured to cost
+    nothing at the join AND to remove the duplicates a matcher would have had
+    to rediscover. Concatenate, do not stitch. The `link/` directory is still
+    an empty placeholder, and the spec lives in the research repository.
 
     >>> from unitassay import curate
     >>> rows = curate.curate_session(ks4_dir, isolation_dir='isolation')
