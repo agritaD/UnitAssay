@@ -51,7 +51,8 @@ Run directly for a one-line report per sort:
 from pathlib import Path
 
 import numpy as np
-from scipy.stats.mstats import mquantiles
+
+from unitassay.drift.metrics import range_90_per_block
 
 # A block holding under this fraction of the mean per-block channel count is a
 # gap block. Read from the geometry, never assumed from the bank count.
@@ -59,22 +60,7 @@ EMPTY_FRAC = 0.25
 # Below this y-span a probe is single-bank and cannot have a gap.
 SINGLE_BANK_SPAN_UM = 4500.0
 
-__all__ = ['detect', 'exclude_gap_blocks', 'range_90_per_block', 'EMPTY_FRAC']
-
-
-def range_90_per_block(dshift):
-    """p95 - p5 per block, MATLAB's `prctile` convention.
-
-    NOT numpy's. They differ by ~0.65% at the median and up to 6% on short
-    recordings, and the sign is systematic, so the convention is part of the
-    measurement rather than a detail.
-    """
-    d = np.asarray(dshift, dtype=float)
-    out = np.empty(d.shape[1])
-    for j in range(d.shape[1]):
-        q = mquantiles(d[:, j], prob=[0.05, 0.95], alphap=0.5, betap=0.5)
-        out[j] = float(q[1] - q[0])
-    return out
+__all__ = ['detect', 'exclude_gap_blocks', 'EMPTY_FRAC']
 
 
 def _load(ks_dir):
