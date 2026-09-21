@@ -88,7 +88,14 @@ MIN_SPIKES = 50
 N_PC = 3
 BURST_SUB_MS = 0.5        # violations inside this sub-window look burst-like
 BURST_FRAC = 0.80         # ...at this concentration or above
-SHAPE_SIM = 0.4           # clus_channel_info's noise-reference threshold
+# THE NOISE-REFERENCE THRESHOLD IS DEFINED ONCE, IN screen.
+# This file used to carry its own 0.4 while screen/config.py used 0.5, so
+# `noise_ch_flagged` answered a STRICTER question than the one screen acted
+# on: the flag stored beside a cluster's isolation did not describe the
+# channel that isolation was measured against (99 vs 107 flagged on
+# 250226_008_np2). One concept, one definition -- read screen's.
+from unitassay.screen.config import IsolationConfig as _IsoCfg   # noqa: E402
+SHAPE_SIM = _IsoCfg().noise_shape_sim_threshold
 
 
 def _sample_rate(ks4_dir, default=30000.0):
