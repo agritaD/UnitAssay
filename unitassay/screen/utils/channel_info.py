@@ -16,8 +16,8 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from unitassay.isolate.io.ks_loader import load_ks_dir
-from unitassay.isolate.io.cluster_groups import read_cluster_groups
+from unitassay.screen.io.ks_loader import load_ks_dir
+from unitassay.screen.io.cluster_groups import read_cluster_groups
 
 
 def _waveform_shape_similarity(wf_a: NDArray, wf_b: NDArray) -> float:

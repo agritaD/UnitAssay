@@ -280,7 +280,7 @@ ANNOTATION = {
 }
 
 # Keyed on (tag, decision), NOT bare tag. flagged_ambiguous_ldl and
-# flagged_untested_ldl are the two rules that defer to ms_pass and so span
+# flagged_untested_ldl are the two rules that defer to screen_pass and so span
 # both decisions -- a bare-tag lookup silently drops one half of each. This
 # exact bug was found and fixed in Fig_Population_Stats on 2026-07-31 (the
 # panel bars summed to less than their own titled n=); keep the pair key.
@@ -807,14 +807,14 @@ def classify_all(records):
 #
 # The trap: `dominant_source` is NOT "which L-ratio comparison failed" for
 # every cluster. m260723_catgt_devcopy_stable_fail_audit.py:351 computes it
-# ONLY for `(not ms_pass) and ldl_verdict in CLEAN_VERDICTS`. For every other
+# ONLY for `(not screen_pass) and ldl_verdict in CLEAN_VERDICTS`. For every other
 # record it is absent -- 4,107 judged clusters as of 2026-08-07 (2,646
 # overmerge, 761 isi_vr, 384 untested, 223 unexplained, 93 ambiguous).
 # Absent does NOT mean "L-ratio failed and we don't know the source"; it
 # means NOT EVALUATED. Treating None/'unclassified' as a failure is the bug.
 #
 # classify_dominant_source() can also return 'none' (nothing crossed
-# threshold -> L-ratio genuinely PASSED even though ms_pass is False) and
+# threshold -> L-ratio genuinely PASSED even though screen_pass is False) and
 # 'mixed' (noise and neighbour both crossed, neither dominates). Both need
 # their own branch; neither is a noise or neighbour failure.
 LRATIO_STATES = ('pass', 'noise_fail', 'neighbor_fail', 'mixed_fail', 'not_evaluated')
@@ -885,7 +885,7 @@ def lratio_state(r):
     """Return one of LRATIO_STATES for a record. Never guesses.
 
     'pass'          mind_snag's combined criterion passed, so L-ratio passed
-                    (ms_pass = passes_lratio AND passes_isi).
+                    (screen_pass = passes_lratio AND passes_isi).
     'noise_fail'    noise-channel comparison dominates the failure.
     'neighbor_fail' a different cluster dominates the failure.
     'mixed_fail'    both crossed threshold, neither dominates.
@@ -894,7 +894,7 @@ def lratio_state(r):
                     L-ratio for these -- mind_snag may well have failed them
                     on ISI-VR alone.
     """
-    if r['ms_pass']:
+    if r['screen_pass']:
         return 'pass'
     dom = r.get('dominant_source')
     if dom == 'noise':

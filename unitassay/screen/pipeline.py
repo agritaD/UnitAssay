@@ -13,7 +13,7 @@ import logging
 from enum import Enum
 from pathlib import Path
 
-from unitassay.isolate.config import IsolateConfig
+from unitassay.screen.config import IsolateConfig
 
 logger = logging.getLogger(__name__)
 
@@ -85,14 +85,14 @@ class Pipeline:
         # Stage 1: Spike extraction
         if Stage.EXTRACT in active_stages:
             logger.info("--- Stage 1: Extracting spikes ---")
-            from unitassay.isolate.sorting.extract_spikes import extract_spikes
+            from unitassay.screen.sorting.extract_spikes import extract_spikes
             extract_spikes(ks_dir, output_dir)
             logger.info("--- Spike extraction complete ---")
 
         # Stage 2: Isolation analysis
         if Stage.ISOLATION in active_stages:
             logger.info("--- Stage 2: Computing isolation scores ---")
-            from unitassay.isolate.curation.compute_isolation import compute_isolation
+            from unitassay.screen.curation.compute_isolation import compute_isolation
             compute_isolation(cfg, ks_dir, output_dir)
             logger.info("--- Isolation analysis complete ---")
 
@@ -105,14 +105,14 @@ class Pipeline:
                 cfg.curation.isi_violation_rate,
                 cfg.curation.isolated_t_ratio,
             )
-            from unitassay.isolate.curation.auto_curate import auto_curate
+            from unitassay.screen.curation.auto_curate import auto_curate
             auto_curate(output_dir, cfg)
             logger.info("--- Auto-curation complete ---")
 
         # Stage 4: Isolated unit extraction
         if Stage.ISO_UNITS in active_stages:
             logger.info("--- Stage 4: Extracting isolated units ---")
-            from unitassay.isolate.curation.extract_isolated_units import extract_isolated_units
+            from unitassay.screen.curation.extract_isolated_units import extract_isolated_units
             extract_isolated_units(cfg, ks_dir, output_dir)
             logger.info("--- Isolated unit extraction complete ---")
 

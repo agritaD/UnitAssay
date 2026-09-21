@@ -20,16 +20,16 @@ from unitassay.curate.decision_flow import RULE_ID, STAGE, curate
 
 
 def _record(**over):
-    """A record on the RETRIEVAL path: layer 1 failed it (`ms_pass=False`) but
+    """A record on the RETRIEVAL path: layer 1 failed it (`screen_pass=False`) but
     the within-cluster LDL verdict is clean, so curate() has to resolve WHY.
 
-    `ms_pass=False` is load-bearing. The guard sits after `if ms_pass: return
+    `screen_pass=False` is load-bearing. The guard sits after `if screen_pass: return
     PASS`, so a record that layer 1 already passed never reaches it -- and it
-    should not: `ms_pass` is computed as `passes_lratio and passes_isi`, so a
+    should not: `screen_pass` is computed as `passes_lratio and passes_isi`, so a
     True there already carries the ISI evidence the guard is checking for.
     """
     r = dict(clu_id=1, n_spikes=5000, ldl_verdict='clean', dip_basis='resolved',
-             ms_pass=False, passes_isi_independent=True, dominant_source='noise',
+             screen_pass=False, passes_isi_independent=True, dominant_source='noise',
              noise_ch_flagged=False, neighbor_never_fails=True, is_burst=False,
              isi_rate=0.0001, split_time_auc=0.5, ccg_accusers=[],
              overlap_pairs=[], redundant_of=None, absent_frame_frac=0.0,
@@ -73,10 +73,10 @@ def test_the_same_record_with_the_field_present_does_not_hit_the_guard():
 
 def test_a_cluster_layer_1_passed_does_not_need_the_guard():
     """The invariant is not violated by rule 2 returning PASS without consulting
-    the ISI field: `ms_pass` is `passes_lratio AND passes_isi`, so a True there
+    the ISI field: `screen_pass` is `passes_lratio AND passes_isi`, so a True there
     already contains the evidence. Documented here so the shortcut is a
     recorded decision rather than an oversight."""
-    r = _record(ms_pass=True)
+    r = _record(screen_pass=True)
     r.pop('passes_isi_independent')
     out = curate(r)
     assert out['decision'] == 'PASS' and out['rule'] == '2'

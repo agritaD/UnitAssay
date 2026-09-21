@@ -5,6 +5,6 @@ Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 
-from unitassay.isolate.cli import cli
+from unitassay.screen.cli import cli
 
 cli()

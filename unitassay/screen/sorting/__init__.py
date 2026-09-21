@@ -5,6 +5,6 @@ Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 
-from unitassay.isolate.sorting.extract_spikes import extract_spikes
+from unitassay.screen.sorting.extract_spikes import extract_spikes
 
 __all__ = ["extract_spikes"]

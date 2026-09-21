@@ -43,7 +43,7 @@ from pathlib import Path
 
 import h5py
 import numpy as np
-from unitassay.isolate.curation.overmerge import is_overmerged
+from unitassay.screen.curation.overmerge import is_overmerged
 from scipy.spatial.distance import mahalanobis, cdist
 from scipy.stats import chi2
 from sklearn.cluster import KMeans
@@ -53,7 +53,7 @@ try:
 except ImportError as e:
     raise ImportError("mind_snag's burst-cell LDA gate requires the 'diptest' package") from e
 
-from unitassay.isolate.config import IsolateConfig
+from unitassay.screen.config import IsolateConfig
 
 logger = logging.getLogger(__name__)
 

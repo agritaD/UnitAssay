@@ -62,7 +62,7 @@ def write_hdf5(
         # It identifies the FILE LAYOUT, not the package, and thousands of
         # SortData.h5 files already carry it. Nothing in this package reads it;
         # an external reader might.
-        f.attrs["format"] = "mind_snag_v2"
+        f.attrs["format"] = "unitassay_screen_v1"
 
         if attrs:
             for k, v in attrs.items():
@@ -137,7 +137,7 @@ def write_sort_data_h5(
 
     with h5py.File(path, "w") as f:
         f.attrs["creation_date"] = datetime.now().isoformat()
-        f.attrs["format"] = "mind_snag_v2"
+        f.attrs["format"] = "unitassay_screen_v1"
         f.attrs["n_frames"] = len(frames)
 
         for i, frame in enumerate(frames):
@@ -183,7 +183,7 @@ def write_raster_data_h5(
 
     with h5py.File(path, "w") as f:
         f.attrs["creation_date"] = datetime.now().isoformat()
-        f.attrs["format"] = "mind_snag_v2"
+        f.attrs["format"] = "unitassay_screen_v1"
         f.attrs["clu"] = clu
 
         # Write spike times per trial as variable-length datasets

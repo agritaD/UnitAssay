@@ -5,6 +5,6 @@ Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 
-from unitassay.isolate.stitching.stitch_neurons import NeuronStitcher
+from unitassay.screen.stitching.stitch_neurons import NeuronStitcher
 
 __all__ = ["NeuronStitcher"]

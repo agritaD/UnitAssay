@@ -117,14 +117,14 @@ def run_batch(sessions, out_root, n_jobs=6, window_sec=None, n_threads=None,
             if timing:
                 rec.append(dict(session=name, **timing))
                 log(f'  [{i}/{len(work)}] {name:<22}{timing["n_clusters"]:>5} clu  '
-                    f'iso {timing.get("isolate_sec")}s  cur {timing["curate_sec"]}s  '
+                    f'iso {timing.get("screen_sec")}s  cur {timing["curate_sec"]}s  '
                     f'{status}')
             else:
                 failed.append(name)
                 log(f'  [{i}/{len(work)}] {name:<22}{status}')
 
     wall = time.perf_counter() - t0
-    iso = [r['isolate_sec'] for r in rec if r.get('isolate_sec')]
+    iso = [r['screen_sec'] for r in rec if r.get('screen_sec')]
     cur = [r['curate_sec'] for r in rec if r.get('curate_sec')]
     med = lambda v: round(sorted(v)[len(v) // 2], 1) if v else None
     summary = dict(
@@ -139,7 +139,7 @@ def run_batch(sessions, out_root, n_jobs=6, window_sec=None, n_threads=None,
     (out_root / 'timing.json').write_text(json.dumps(summary, indent=1))
     log(f'\n{len(rec)}/{len(work)} sessions, {summary["n_clusters"]:,} clusters')
     log(f'  wall clock       {wall / 60:.1f} min at n_jobs={n_jobs}')
-    log(f'  isolate CPU      {sum(iso) / 60:.1f} min   median {med(iso)} s/session')
+    log(f'  screen CPU       {sum(iso) / 60:.1f} min   median {med(iso)} s/session')
     log(f'  curate  CPU      {sum(cur) / 60:.1f} min   median {med(cur)} s/session')
     if failed:
         log(f'  {len(failed)} FAILED: {", ".join(failed[:8])}'

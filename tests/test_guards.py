@@ -56,7 +56,7 @@ def test_deprecated_keyword_still_works_and_warns(tmp_path):
 # --------------------------------------------------------------------------
 
 def _retrieval_record(**over):
-    r = {'ldl_verdict': 'not_overmerged', 'ms_pass': False,
+    r = {'ldl_verdict': 'not_overmerged', 'screen_pass': False,
          'dominant_source': 'other_cluster', 'passes_isi_independent': True,
          'between_cluster_confirmed_separated': True,
          'between_all_neighbours_separated': True, 'n_spikes': 1000,
@@ -195,7 +195,7 @@ def test_resume_refuses_a_result_from_another_version(tmp_path, monkeypatch):
     called = {}
     def _fake(ks_dir, out_dir, *a, **k):
         called['ran'] = True
-        return [], {'n_clusters': 0, 'curate_sec': 0.0, 'isolate_sec': 0.0}
+        return [], {'n_clusters': 0, 'curate_sec': 0.0, 'screen_sec': 0.0}
     monkeypatch.setattr('unitassay.cli.run_session', _fake)
     batch._one(('s1', tmp_path, tmp_path / 'out', 100, 8))
     assert called.get('ran'), 'a result from another version was resumed'
@@ -211,7 +211,7 @@ def test_resume_refuses_when_the_isolation_is_gone(tmp_path, monkeypatch):
     called = {}
     def _fake(ks_dir, out_dir, *a, **k):
         called['ran'] = True
-        return [], {'n_clusters': 0, 'curate_sec': 0.0, 'isolate_sec': 0.0}
+        return [], {'n_clusters': 0, 'curate_sec': 0.0, 'screen_sec': 0.0}
     monkeypatch.setattr('unitassay.cli.run_session', _fake)
     batch._one(('s1', tmp_path, tmp_path / 'out', 100, 8))
     assert called.get('ran'), 'a result whose isolation is gone was resumed'

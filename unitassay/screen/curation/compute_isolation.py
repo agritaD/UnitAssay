@@ -18,11 +18,11 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from unitassay.isolate.config import IsolateConfig
-from unitassay.isolate.io.ks_loader import load_ks_dir
-from unitassay.isolate.io.cluster_groups import read_cluster_groups
-from unitassay.isolate.io.hdf5_writer import write_sort_data_h5
-from unitassay.isolate.utils.channel_info import clus_channel_info
+from unitassay.screen.config import IsolateConfig
+from unitassay.screen.io.ks_loader import load_ks_dir
+from unitassay.screen.io.cluster_groups import read_cluster_groups
+from unitassay.screen.io.hdf5_writer import write_sort_data_h5
+from unitassay.screen.utils.channel_info import clus_channel_info
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ Licence: MIT
 Three layers, applied after a spike sorter (Kilosort, or any sorter that
 writes the standard Phy-style arrays):
 
-    isolate   per-frame isolation quality — the L-ratio of each unit against a
+    screen    per-frame isolation quality — the L-ratio of each unit against a
               shape-dissimilar reference channel and against each neighbouring
               cluster, written as one SortData.h5 per cluster
     curate    eight rules that decide keep/reject, a taxonomy that names the
@@ -43,4 +43,4 @@ __version__ = '0.1.0'
 __author__ = 'Agrita Dubey, Qiao (Betty) Xu'
 __license__ = 'MIT'
 
-from . import curate, isolate            # noqa: F401
+from . import curate, screen            # noqa: F401

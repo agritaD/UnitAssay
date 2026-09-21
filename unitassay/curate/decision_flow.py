@@ -10,7 +10,7 @@ Input contract: curate() takes ONE merged record (a dict) per cluster, with
 these keys expected (missing/None keys are handled explicitly, not assumed):
   ldl_verdict   : 'unimodal' | 'not_overmerged' | 'overmerged' | 'multiway' |
                   'ambiguous' | 'untested'
-  ms_pass       : bool -- mind_snag's real curation decision
+  screen_pass       : bool -- mind_snag's real curation decision
   dominant_source : 'noise' | 'other_cluster' | 'unclassified' | None --
                   mind_snag's OWN vocabulary, left unchanged so this field stays
                   in step with the upstream tool. Read it for what the algorithm
@@ -20,7 +20,7 @@ these keys expected (missing/None keys are handled explicitly, not assumed):
                   noise. Ground truth says it is usually another neuron (#42).
                   Our own tags say this properly; see curate/taxonomy.py.
                   which L-ratio comparison dominates the failure, only
-                  meaningful when ms_pass=False and ldl_verdict is clean
+                  meaningful when screen_pass=False and ldl_verdict is clean
   noise_ch_flagged : bool | None -- clus_channel_info()'s flag (no
                   shape-dissimilar reference channel existed at all)
   neighbor_never_fails : bool | None -- STRICT: neighbor L-ratio never
@@ -311,7 +311,7 @@ def _apply_rules(r):
     # them -- 84 duplicate, 61 contamination, 27 refractory, 80 confirmed pass.
     if v == 'ambiguous':
         v = 'not_overmerged'
-    ms_pass = bool(r['ms_pass'])
+    screen_pass = bool(r['screen_pass'])
     passes_isi_ind = r.get('passes_isi_independent')  # None = not yet checked
 
     # Rule 1: LDL overmerged/multiway -> FAIL always, overriding mind_snag,
@@ -325,8 +325,8 @@ def _apply_rules(r):
     # itself is catching. So overmerge attribution is preserved in full
     # here; only the categories with no such competing finding to protect
     # (ambiguous/untested, rules 7/8 below) defer to the ISI-VR gate.
-    # Collapses old confirmed_fail (ms_pass already False, agrees) and the
-    # ms_pass-overriding branch (ms_pass was True) into one final FAIL.
+    # Collapses old confirmed_fail (screen_pass already False, agrees) and the
+    # screen_pass-overriding branch (screen_pass was True) into one final FAIL.
     #
     # THE OVERRIDE BRANCH WAS RENAMED AND FLAGGED, 2026-08-28 (Agrita).
     # It used to be `missed_overmerge_corrected`, which asserts a mechanism the
@@ -362,7 +362,7 @@ def _apply_rules(r):
     # settle it. Deferred to #53 (hybrid ground truth) so the category is
     # revisited once, not twice.
     if v in OVERMERGE_VERDICTS:
-        if not ms_pass:
+        if not screen_pass:
             return {'decision': 'FAIL', 'needs_inspection': False,
                     'tag': 'confirmed_fail', 'rule': '1'}
 
@@ -420,7 +420,7 @@ def _apply_rules(r):
     # ambiguous/untested) since those have no protected finding of their own
     # to preserve -- resolving them via the simpler, more certain ISI-VR
     # criterion is a straightforward win, not a dilution of anything.
-    # Confirmed 2026-07-31 on real data: whenever ms_pass=True, the
+    # Confirmed 2026-07-31 on real data: whenever screen_pass=True, the
     # independent recheck already agrees (0/5905 confirmed_pass disagree) --
     # so this only ever changes outcomes for ambiguous (166/448) and
     # untested (191/1253), correctly resolving what used to be a
@@ -467,7 +467,7 @@ def _apply_rules(r):
     # synthetic ones.
     #
     # It is deleted rather than kept as a guard because it could return a PASS
-    # (`flagged_ambiguous_ldl` with ms_pass), and unreachable code that can pass
+    # (`flagged_ambiguous_ldl` with screen_pass), and unreachable code that can pass
     # a cluster is the kind of thing that gets re-enabled by accident. Its
     # sub-branches -- `7-within`, `7-neighbor`, `7-neighbor-retrieved`,
     # `7-neighbor-all`, carrying the #44 and #45 reasoning -- go with it; the
@@ -477,15 +477,15 @@ def _apply_rules(r):
     # Rule 8 (`untested`) is NOT affected and stays: unlike ambiguous, there is
     # no secondary signal that has already resolved that population.
     if v == 'untested':
-        return {'decision': 'PASS' if ms_pass else 'FAIL', 'needs_inspection': True,
+        return {'decision': 'PASS' if screen_pass else 'FAIL', 'needs_inspection': True,
                 'tag': 'flagged_untested_ldl', 'rule': '8'}
 
     # From here, v is a CLEAN verdict (unimodal / not_overmerged).
-    # Rule 2: ms_pass=True and LDL clean -> PASS, no override needed.
-    if ms_pass:
+    # Rule 2: screen_pass=True and LDL clean -> PASS, no override needed.
+    if screen_pass:
         return {'decision': 'PASS', 'needs_inspection': False, 'tag': 'confirmed_pass', 'rule': '2'}
 
-    # ms_pass=False, LDL clean, ISI-VR already confirmed True or unknown
+    # screen_pass=False, LDL clean, ISI-VR already confirmed True or unknown
     # (rule 0 above already caught the False case) -- mind_snag failed this
     # cluster for some reason the within-cluster LDL test doesn't confirm.
     # Resolve WHY.

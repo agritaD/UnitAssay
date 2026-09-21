@@ -20,7 +20,7 @@ must be kept in sync with this file if the math here ever changes.
 Method: LDA finds the direction maximising separation between two spike
 groups (in KS4 multichannel PC-feature space, N_PC PCs x n_local_channels);
 Hartigan's dip test on that 1D projection checks for two modes; L-ratio
-(isolate/Mahalanobis formula) between the two groups checks whether
+(screen/Mahalanobis formula) between the two groups checks whether
 they're cleanly separated in the full feature space (not just along the
 LDA axis).
 
@@ -100,7 +100,7 @@ def _lda_direction(fa, fb, d):
 
 
 def _mutual_l_ratio(fa, fb, d, reg):
-    """max(L(fb vs fa's ellipsoid), L(fa vs fb's ellipsoid)) -- isolate/
+    """max(L(fb vs fa's ellipsoid), L(fa vs fb's ellipsoid)) -- screen/
     Schmitzer-Torbert & Redish (2004) formula, both directions, more
     conservative (harder-to-pass) direction wins. Returns np.nan on failure.
     """
@@ -422,7 +422,7 @@ def between_verdict(dip_pval, l_ratio, dip_thresh=DIP_PVAL_THRESH,
 # WHY THIS MATTERS: collinear is the REALISTIC geometry on a linear probe --
 # units differing mainly in depth on shared channels give feature offsets along
 # one direction (the amplitude/position gradient). And 'ambiguous' is NOT a
-# fail: curate() rule 7 defers it to ms_pass, so such a merge can PASS.
+# fail: curate() rule 7 defers it to screen_pass, so such a merge can PASS.
 #
 # CONSEQUENCE: do NOT use this to judge the `multiway` population (2,795
 # clusters currently auto-failed by rule 1). Keep the auto-fail until the

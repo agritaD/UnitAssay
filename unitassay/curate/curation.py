@@ -137,7 +137,7 @@ def cluster_inputs(spike_times_ms, pc_feats, channel_fields_row, duration_sec):
 
     return dict(
         ldl_verdict=vv['verdict'],
-        ms_pass=bool(ch['passes_lratio'] and passes_isi),
+        screen_pass=bool(ch['passes_lratio'] and passes_isi),
         passes_isi_independent=bool(passes_isi),
         dominant_source=ch['dominant_source'],
         noise_ch_flagged=ch.get('noise_ch_flagged'),
@@ -189,7 +189,7 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
 
     ks4_dir           KS4 output directory (spike_times/clusters, pc_features,
                       templates, channel_positions, params.py)
-    isolation_dir     where the isolate layer's SortData.h5 files are. An
+    isolation_dir     where the screen layer's SortData.h5 files are. An
                       ABSOLUTE PATH is the safe form and is what the CLI passes;
                       a bare NAME asks this function to search beside and inside
                       ks4_dir, and it refuses when both exist rather than
@@ -203,7 +203,7 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
                       outside this package still pass it.
 
     THE DEFAULT CHANGED WITH THE NAME, from 'mindsnag' to 'isolation'. The
-    layer is called `isolate` and its CLI writes to `isolation/`, so the old
+    layer is called `screen` and its CLI writes to `isolation/`, so the old
     default named a directory this package never creates. A caller relying on
     the old default was depending on a lab layout, not on the tool.
     """
@@ -212,7 +212,7 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
         # the default, and a caller passing the old one would get 'isolation'
         # searched for while believing it had asked for something else.
         warnings.warn('curate_session(mindsnag_subdir=) is deprecated; use '
-                      'isolation_dir=. The isolate layer replaced mind_snag '
+                      'isolation_dir=. The screen layer replaced mind_snag '
                       'and the default is now "isolation".',
                       DeprecationWarning, stacklevel=2)
         isolation_dir = mindsnag_subdir
@@ -222,9 +222,9 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
     # mind_snag onto sys.path, because three diverged copies existed and the one
     # `import mind_snag` found had a different clus_channel_info signature and a
     # different noise-reference rule. Inside this package there is exactly one
-    # copy -- unitassay.isolate -- so the ambiguity that made the pin necessary
+    # copy -- unitassay.screen -- so the ambiguity that made the pin necessary
     # does not exist.
-    from unitassay.isolate.utils.channel_info import clus_channel_info
+    from unitassay.screen.utils.channel_info import clus_channel_info
 
     ks4 = Path(ks4_dir)
     # TWO LAYOUTS EXIST AND sortdata_path TAKES THE PARENT OF THE SortData DIR.
@@ -237,7 +237,7 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
     #   AN ABSOLUTE PATH IS ALSO ACCEPTED, which is how the CLI uses this: it
     # writes isolation under --out, which need not be anywhere near --ks-dir.
     # Without this branch the two disagreed about where the files were and the
-    # run died after the isolate stage had already done all its work.
+    # run died after the screen stage had already done all its work.
     _sub = Path(isolation_dir)
     if _sub.is_absolute():
         if not _sub.is_dir():
@@ -374,7 +374,7 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
         d.update(between_cluster_confirmed_separated=None,
                  between_all_neighbours_separated=None, ccg_accusers=[])
         # only clusters mind_snag blames on a NEIGHBOUR reach rule 5's retrieval
-        if d.get('dominant_source') != 'other_cluster' or d.get('ms_pass'):
+        if d.get('dominant_source') != 'other_cluster' or d.get('screen_pass'):
             continue
         f = sortdata_path(root, clu, isolation_dir)
         if not f.exists():

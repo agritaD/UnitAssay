@@ -128,7 +128,7 @@ def _contaminated(r):
     Calling this finding `noise` would repeat the mislabel that cost a day.
     """
     ds = r.get('dominant_source', _MISSING)
-    ms = r.get('ms_pass', _MISSING)
+    ms = r.get('screen_pass', _MISSING)
     if ds is _MISSING or ms is _MISSING or ds is None:
         return None
     return ds == 'noise' and not ms
@@ -143,7 +143,7 @@ def _neighbour_overlap(r):
     collapsing the two would silently convert every retrieval into a rejection.
     """
     ds = r.get('dominant_source', _MISSING)
-    ms = r.get('ms_pass', _MISSING)
+    ms = r.get('screen_pass', _MISSING)
     if ds is _MISSING or ms is _MISSING or ds is None:
         return None
     return ds in ('other_cluster', 'mixed') and not ms
@@ -205,7 +205,7 @@ def _unattributed_ms_fail(r):
     from clean, which is precisely how seven genuinely clean but intermittent
     units sat in `unexplained` for eleven days.
     """
-    ms = r.get('ms_pass', _MISSING)
+    ms = r.get('screen_pass', _MISSING)
     ds = r.get('dominant_source', _MISSING)
     if ms is _MISSING or ds is _MISSING or ds is None:
         return None
@@ -247,7 +247,7 @@ def _one_cell_not_drifting(r):
     ABSENT IS NOT NEGATIVE: a missing isi_rate cannot claim "one cell", and a
     missing split_time_auc cannot claim "not drift", so either holds the finding.
     """
-    if not bool(r.get('ms_pass')):
+    if not bool(r.get('screen_pass')):
         return False
     isi = r.get('isi_rate')
     if isi is None or isi >= ISI_ONE_CELL_FLOOR:

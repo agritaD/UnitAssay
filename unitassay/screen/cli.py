@@ -1,4 +1,4 @@
-"""Click CLI for the isolate layer: ``python -m unitassay.isolate run ...``
+"""Click CLI for the screen layer: ``python -m unitassay.screen run ...``
 
 Subcommands:
   - ``run``     : Execute the full pipeline
@@ -30,7 +30,7 @@ def _setup_logging(verbose: bool) -> None:
 @click.group()
 @click.version_option(package_name="mind-snag")
 def cli() -> None:
-    """unitassay isolate: per-frame isolation quality from a sorter's output."""
+    """unitassay screen: per-frame isolation quality from a sorter's output."""
     pass
 
 
@@ -50,8 +50,8 @@ def run(
     """Run the isolation pipeline over a sorter's output."""
     _setup_logging(verbose)
 
-    from unitassay.isolate.config import IsolateConfig
-    from unitassay.isolate.pipeline import Pipeline
+    from unitassay.screen.config import IsolateConfig
+    from unitassay.screen.pipeline import Pipeline
 
     cfg = IsolateConfig.from_yaml(config)
     pipeline = Pipeline(cfg)
@@ -78,7 +78,7 @@ def convert(
     """Convert between .mat and HDF5 formats."""
     _setup_logging(verbose)
 
-    from unitassay.isolate.io.converter import convert_file
+    from unitassay.screen.io.converter import convert_file
     convert_file(Path(input_path), Path(output_path), direction)
     click.echo(f"Converted: {input_path} -> {output_path}")
 
@@ -99,8 +99,8 @@ def stitch(
     """Run cross-recording neuron stitching."""
     _setup_logging(verbose)
 
-    from unitassay.isolate.config import IsolateConfig
-    from unitassay.isolate.stitching.stitch_neurons import NeuronStitcher
+    from unitassay.screen.config import IsolateConfig
+    from unitassay.screen.stitching.stitch_neurons import NeuronStitcher
 
     cfg = IsolateConfig.from_yaml(config)
 

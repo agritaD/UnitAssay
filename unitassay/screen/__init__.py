@@ -1,4 +1,4 @@
-"""unitassay.isolate — per-frame isolation quality for sorted units.
+"""unitassay.screen — per-frame isolation quality for sorted units.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
 Developed with Claude (Anthropic).
@@ -20,7 +20,7 @@ Part of unitassay. Licence: MIT.
 
 __version__ = "2.0.0"
 
-from unitassay.isolate.config import IsolateConfig
-from unitassay.isolate.pipeline import Pipeline
+from unitassay.screen.config import IsolateConfig
+from unitassay.screen.pipeline import Pipeline
 
 __all__ = ["IsolateConfig", "Pipeline", "__version__"]

@@ -17,11 +17,11 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from unitassay.isolate.config import IsolateConfig
-from unitassay.isolate.io.ks_loader import load_ks_dir
-from unitassay.isolate.io.mat_reader import load_mat
-from unitassay.isolate.types import MatchDetail, StitchResult
-from unitassay.isolate.utils.psth import psth
+from unitassay.screen.config import IsolateConfig
+from unitassay.screen.io.ks_loader import load_ks_dir
+from unitassay.screen.io.mat_reader import load_mat
+from unitassay.screen.types import MatchDetail, StitchResult
+from unitassay.screen.utils.psth import psth
 
 logger = logging.getLogger(__name__)
 

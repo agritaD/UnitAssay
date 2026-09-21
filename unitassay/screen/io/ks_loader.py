@@ -14,9 +14,9 @@ from pathlib import Path
 
 import numpy as np
 
-from unitassay.isolate.io.cluster_groups import read_cluster_groups
-from unitassay.isolate.io.params_py_loader import load_params_py
-from unitassay.isolate.types import KilosortOutput
+from unitassay.screen.io.cluster_groups import read_cluster_groups
+from unitassay.screen.io.params_py_loader import load_params_py
+from unitassay.screen.types import KilosortOutput
 
 
 def load_ks_dir(

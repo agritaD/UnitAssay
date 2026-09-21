@@ -4,7 +4,7 @@ The unit tests exercise `curate()` on records. This one runs the thing a user
 runs -- isolate reads the sorter's arrays and writes SortData files, curate
 reads those and decides -- on `tests/fixture/`, in about a second.
 
-WHAT IT CATCHES that the unit tests cannot: a break in the isolate layer, in the
+WHAT IT CATCHES that the unit tests cannot: a break in the screen layer, in the
 file formats between the two layers, in the subprocess call, or in the record
 `curate_session` assembles. Every one of those sits outside `curate()` and none
 of the other tests touches them.
