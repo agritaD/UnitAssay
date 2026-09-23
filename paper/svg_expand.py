@@ -69,3 +69,39 @@ def report(svg_path):
                 use_instances=len(re.findall(r'<use', t)),
                 paths=len(re.findall(r'<path', t)),
                 text=len(re.findall(r'<text', t)))
+
+
+def drop_clips(svg_path, out_path=None):
+    """Remove clipping masks, so nothing has to be entered before it is editable.
+
+    matplotlib clips each axes' contents to its own box. That is correct for
+    display, but Illustrator imports every clip as a clipping GROUP: the marks
+    inside are editable, yet a click selects the mask first and the group has
+    to be entered. On a figure whose data already sits inside its axes the
+    clips buy nothing.
+
+    DO NOT APPLY BLIND. Tried on Figure 3 C/D it BROKE the figure: the
+    correlogram is on a log y-axis, so its bars are drawn to an enormous
+    negative extent and only the clip keeps them inside the panel. Without it
+    they flood the panel below. Render the result and look at it before
+    keeping it.
+    """
+    import xml.etree.ElementTree as ET
+
+    ET.register_namespace('', SVG_NS)
+    ET.register_namespace('xlink', XLINK_NS)
+    svg_path = Path(svg_path)
+    out_path = Path(out_path or svg_path)
+    tree = ET.parse(svg_path)
+    root = tree.getroot()
+    n = 0
+    for el in root.iter():
+        if el.get('clip-path'):
+            del el.attrib['clip-path']
+            n += 1
+    for parent in root.iter():
+        for c in list(parent):
+            if c.tag == f'{{{SVG_NS}}}clipPath':
+                parent.remove(c)
+    tree.write(out_path, xml_declaration=True, encoding='utf-8')
+    return out_path, n
