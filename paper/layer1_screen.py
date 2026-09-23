@@ -313,3 +313,42 @@ def make_performance_panel(perf, cost, out_svg):
     fig.savefig(out_svg, facecolor='white')
     plt.close(fig)
     return out_svg
+
+
+def make_channel_agreement_panel(agreement, out_svg):
+    """Supplementary: would weighting PC coverage change the channel chosen?
+
+    Old manuscript Figure 4B/4C made this point on 16 sessions and called the
+    alternative a "dual criterion". The shipped code hardcodes `alpha = 1.0`,
+    so the combined score is waveform energy alone and PC coverage enters only
+    as a fallback -- the label must say that, not imply a live weighting.
+    """
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from . import style
+    style.apply()
+    C, SZ = style.C, style.SZ
+    fig, ax = plt.subplots(figsize=(style.W_IN * 0.44, 1.60),
+                           gridspec_kw=dict(left=0.13, right=0.97, top=0.80,
+                                            bottom=0.32))
+    vals = [agreement['pct_same'], agreement['pct_differ'],
+            agreement['pct_fallback_fires']]
+    labs = ['same channel\nchosen', 'a 50/50 blend\nwould differ',
+            'PC-coverage\nfallback fires']
+    cols = [C['teal'], C['warm'], C['neutral']]
+    ax.bar(range(3), vals, 0.56, color=cols, linewidth=0)
+    for i, v in enumerate(vals):
+        ax.text(i, v + 2, f'{v:.1f}%', ha='center', va='bottom',
+                fontsize=SZ['tick'], fontweight='bold', color=cols[i])
+    ax.set_xticks(range(3)); ax.set_xticklabels(labs, fontsize=SZ['tick'])
+    ax.set_ylabel('% of clusters'); ax.set_ylim(0, 112)
+    ax.set_title('Waveform energy already decides the channel', loc='left',
+                 fontsize=SZ['sub'])
+    ax.text(0.99, 0.62, f"{agreement['n']:,} clusters\n"
+            f"{agreement['n_sessions']} sessions", transform=ax.transAxes,
+            ha='right', va='top', fontsize=SZ['tick'], color=C['neutral'],
+            linespacing=1.4)
+    fig.savefig(out_svg, facecolor='white')
+    plt.close(fig)
+    return out_svg
