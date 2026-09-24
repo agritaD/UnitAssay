@@ -30,6 +30,7 @@ import numpy as np
 
 SHIPPED_L_RATIO = 0.2          # screen.config.CurationConfig.l_ratio_threshold
 SHIPPED_T_RATIO = 0.6          # screen.config.CurationConfig.isolated_t_ratio
+MIN_PC_COVERAGE = 0.1          # channel_info's min_pc_threshold
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -392,26 +393,31 @@ def make_channel_agreement_panel(agreement, out_svg):
 
 def dominance_by_criterion(corpus, n_sessions=None, min_spikes=100,
                            bins=((0, 50), (50, 90), (90, 100))):
-    """Old manuscript Figure 4B/4C, recomputed on the full corpus.
+    """Old manuscript Figure 4B/4C, on the full corpus, using the SHIPPED rule.
 
-    For each cluster the screen picks a unit channel and a reference channel.
-    "Dominance level" is that channel's PC coverage -- the fraction of the
+    "Dominance level" is a channel's PC coverage -- the fraction of the
     cluster's spikes that have non-zero PC features there. A channel the unit
     is barely present on is a poor choice however large its waveform looks.
 
-    Returns, per session, the % of clusters whose CHOSEN channel falls in each
-    dominance band, under two rules:
+    Two rules are compared, and only one of them is reconstructed here:
 
-      energy   what ships: `alpha = 1.0`, so the score is waveform energy
-      blend    a 50/50 weighting of energy and coverage, i.e. what the old
-               figure called the "dual criterion"
+      energy    the naive choice -- highest (or lowest) waveform energy, full
+                stop. This is the baseline the original figure compared against.
+      unitassay `clus_channel_info()` ITSELF, called directly. Not a
+                paraphrase: the shipped rule guards the unit channel on
+                coverage and the reference channel on coverage AND
+                shape-similarity, and an earlier version of this function
+                approximated only the coverage half, which inverted the
+                reference panel's conclusion.
 
-    The old panels were made on 16 sessions. Per-session values are returned so
-    the spread can be drawn, not just a pooled number.
+    Returns per-session percentages so the spread can be drawn. The original
+    panels were made on 16 sessions.
     """
+    from unitassay.screen.utils.channel_info import clus_channel_info
+
     corpus = Path(corpus)
-    out = {'unit': {'energy': [], 'blend': []},
-           'reference': {'energy': [], 'blend': []},
+    out = {'unit': {'energy': [], 'unitassay': []},
+           'reference': {'energy': [], 'unitassay': []},
            'bins': [list(b) for b in bins], 'sessions': []}
     files = sorted(corpus.glob('*/curated.json'))
     if n_sessions:
@@ -419,15 +425,16 @@ def dominance_by_criterion(corpus, n_sessions=None, min_spikes=100,
     for p in files:
         ks = Path(json.loads(p.read_text())['ks_dir'])
         try:
+            mx, mn, _flag = clus_channel_info(ks)          # THE SHIPPED RULE
             tm = np.load(ks / 'templates.npy')
             pcfi = np.load(ks / 'pc_feature_ind.npy')
             pcf = np.load(ks / 'pc_features.npy', mmap_mode='r')
             sc = np.load(ks / 'spike_clusters.npy').ravel().astype(np.int64)
         except Exception:
             continue
-        got = {k: {'energy': [], 'blend': []} for k in ('unit', 'reference')}
+        got = {k: {'energy': [], 'unitassay': []} for k in ('unit', 'reference')}
         for c in np.unique(sc):
-            if c >= tm.shape[0] or c >= pcfi.shape[0]:
+            if c >= tm.shape[0] or c >= pcfi.shape[0] or c >= len(mx):
                 continue
             idx = np.where(sc == c)[0]
             if idx.size < min_spikes:
@@ -441,31 +448,30 @@ def dominance_by_criterion(corpus, n_sessions=None, min_spikes=100,
                 continue
             f = np.asarray(pcf[np.sort(idx[:1500])][:, :3, :len(ch)])
             nzr = 1.0 - np.mean(np.all(f == 0, axis=1), axis=0)
-            pn = ptp / ptp.max()
-            zn = nzr / (nzr.max() or 1)
-            blend = 0.5 * pn + 0.5 * zn
-            got['unit']['energy'].append(nzr[int(np.argmax(pn))])
-            got['unit']['blend'].append(nzr[int(np.argmax(blend))])
-            # the reference is the LOWEST-energy channel under each rule
-            got['reference']['energy'].append(nzr[int(np.argmin(ptp))])
-            got['reference']['blend'].append(nzr[int(np.argmin(blend))])
+
+            def coverage_of(channel):
+                """PC coverage of the channel the shipped rule returned."""
+                w = np.where(ch == int(channel))[0]
+                return float(nzr[int(w[0])]) if w.size else np.nan
+
+            got['unit']['energy'].append(float(nzr[int(np.argmax(ptp))]))
+            got['reference']['energy'].append(float(nzr[int(np.argmin(ptp))]))
+            got['unit']['unitassay'].append(coverage_of(mx[c]))
+            got['reference']['unitassay'].append(coverage_of(mn[c]))
         if not got['unit']['energy']:
             continue
         out['sessions'].append(p.parent.name)
         for site in ('unit', 'reference'):
-            for rule in ('energy', 'blend'):
-                v = 100 * np.asarray(got[site][rule])
+            for rule in ('energy', 'unitassay'):
+                v = 100 * np.asarray(got[site][rule], float)
+                v = v[np.isfinite(v)]
                 out[site][rule].append(
-                    [float(100 * np.mean((v >= lo) & (v <= hi))) for lo, hi in bins])
+                    [float(100 * np.mean((v >= lo) & (v <= hi)))
+                     for lo, hi in bins] if v.size else [np.nan] * len(bins))
     out['n_sessions'] = len(out['sessions'])
     return out
 
 
-# Which kind of evidence a verdict rested on, named in the SCREEN's own terms.
-# The figure that introduces the decision rules comes later, so this panel must
-# not name them: at this point the reader knows only what the screen measures --
-# the unit against its reference channel, the unit against its neighbours, and
-# how both behave frame by frame.
 EVIDENCE = {
     '4a reference channel': 'noise comparison',
     '5a feature space': 'neighbour comparison',
@@ -568,5 +574,76 @@ def make_contribution_panel(ev, cost, out_svg):
         ax2.text(100, 88, f"{cost['screen']['ms_per_cluster']:.0f} ms per cluster",
                  fontsize=SZ['lab'], color=C['teal'], fontweight='bold',
                  ha='right', va='top')
+    _save(fig, out_svg)
+    return out_svg
+
+
+def make_dominance_panel(dom, out_svg):
+    """Supplementary: old manuscript Figure 4B/4C, on the full corpus.
+
+    Replicates the original's form deliberately -- a box per dominance band
+    per rule, every session an overlaid dot, boxed axes, legend top left --
+    so the two can be compared directly. Only the corpus changes: 16 sessions
+    became 147.
+
+    THE LEGEND SAYS WHAT SHIPS. The original labelled the second series "dual
+    criterion". `alpha = 1.0` is hardcoded, so the combined score is waveform
+    energy alone and coverage enters only as a fallback; the blend is shown as
+    the alternative it is, not as the tool's behaviour.
+    """
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import numpy as _np
+    from matplotlib.patches import Patch
+    from . import style
+    style.apply()
+    SZ = style.SZ
+    DOT = {'energy': '#2E7D8A', 'unitassay': '#8B1A1A'}
+    SWATCH = {'energy': '#ADD8E6', 'unitassay': '#F08080'}
+    NAME = {'energy': 'Waveform energy alone', 'unitassay': 'unitassay'}
+    labels = [f'{lo}-{hi}' for lo, hi in dom['bins']]
+
+    fig, axes = plt.subplots(1, 2, figsize=(style.W_IN * 0.62, 2.05),
+                             gridspec_kw=dict(wspace=0.34, left=0.095,
+                                              right=0.99, top=0.84,
+                                              bottom=0.22))
+    titles = {'unit': 'Unit-channel selection',
+              'reference': 'Noise-channel selection'}
+    rng = _np.random.default_rng(0)
+    for ax, site in zip(axes, ('unit', 'reference')):
+        for j, rule in enumerate(('energy', 'unitassay')):
+            arr = _np.asarray(dom[site][rule])          # sessions x bins
+            for i in range(arr.shape[1]):
+                x = i + (j - 0.5) * 0.30
+                bp = ax.boxplot([arr[:, i]], positions=[x], widths=0.20,
+                                patch_artist=True, showfliers=False,
+                                medianprops=dict(color='k', lw=0.7),
+                                whiskerprops=dict(lw=0.5),
+                                capprops=dict(lw=0.5))
+                for b in bp['boxes']:
+                    b.set(facecolor='white', edgecolor='k', linewidth=0.5)
+                ax.scatter(x + rng.uniform(-0.075, 0.075, arr.shape[0]),
+                           arr[:, i], s=1.6, color=DOT[rule], alpha=0.65,
+                           linewidths=0, zorder=3)
+        ax.set_xticks(range(len(labels)))
+        ax.set_xticklabels(labels, fontsize=SZ['tick'])
+        ax.set_xlim(-0.55, len(labels) - 0.45)
+        ax.set_ylim(-4, 104)
+        ax.set_xlabel('Dominance level (%)')
+        ax.set_ylabel('Percentage of clusters (%)')
+        for sp in ax.spines.values():          # the original is a boxed axes
+            sp.set_visible(True)
+            sp.set_linewidth(0.6)
+        ax.set_title(titles[site], loc='left', fontsize=SZ['sub'])
+    axes[0].legend(handles=[Patch(facecolor=SWATCH[r], edgecolor='k',
+                                  linewidth=0.5, label=NAME[r])
+                            for r in ('energy', 'unitassay')],
+                   loc='upper left', bbox_to_anchor=(0.02, 0.98),
+                   fontsize=SZ['tick'], frameon=True, handlelength=1.1,
+                   borderpad=0.3, labelspacing=0.3)
+    axes[1].text(0.98, 0.04, f"{dom['n_sessions']} sessions",
+                 transform=axes[1].transAxes, ha='right', va='bottom',
+                 fontsize=SZ['tick'], color=style.C['neutral'])
     _save(fig, out_svg)
     return out_svg
