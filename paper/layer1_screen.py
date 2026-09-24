@@ -198,6 +198,24 @@ def channel_selection_agreement(corpus, n_sessions=12, min_spikes=100):
 # ──────────────────────────────────────────────────────────────────────────
 # drawing — these only draw; they never measure
 # ──────────────────────────────────────────────────────────────────────────
+def _save(fig, out):
+    """Write the panel, and make its marks individually editable.
+
+    matplotlib writes repeated markers as one `<path>` in `<defs>` plus a
+    `<use>` per point. That is vector, but Illustrator imports `<use>` as
+    symbol instances that cannot be edited until expanded -- which is the same
+    as a picture to whoever finishes the figure.
+    """
+    import matplotlib.pyplot as plt
+    from pathlib import Path as _P
+    fig.savefig(out, facecolor='white')
+    plt.close(fig)
+    if str(out).endswith('.svg'):
+        from .svg_expand import expand_use
+        expand_use(out)
+    return _P(out)
+
+
 def make_threshold_panel(sweep, out_svg):
     """Panel D: how the pass rate moves with each shipped threshold."""
     import matplotlib
@@ -238,8 +256,7 @@ def make_threshold_panel(sweep, out_svg):
                 loc='left', fontsize=SZ['tick'])
     b.text(0.97, 0.9, f"n = {S['n']:,}", transform=b.transAxes, ha='right',
            fontsize=SZ['tick'], color=C['neutral'])
-    fig.savefig(out_svg, facecolor='white')
-    plt.close(fig)
+    _save(fig, out_svg)
     return out_svg
 
 
@@ -310,8 +327,7 @@ def make_performance_panel(perf, cost, out_svg):
                  f"at {cost['screen']['ms_per_cluster']:.0f} ms per cluster",
                  transform=ax2.transAxes, ha='center', va='top',
                  fontsize=SZ['tick'], color=C['teal'], fontweight='bold')
-    fig.savefig(out_svg, facecolor='white')
-    plt.close(fig)
+    _save(fig, out_svg)
     return out_svg
 
 
@@ -349,6 +365,187 @@ def make_channel_agreement_panel(agreement, out_svg):
             f"{agreement['n_sessions']} sessions", transform=ax.transAxes,
             ha='right', va='top', fontsize=SZ['tick'], color=C['neutral'],
             linespacing=1.4)
-    fig.savefig(out_svg, facecolor='white')
-    plt.close(fig)
+    _save(fig, out_svg)
+    return out_svg
+
+
+def dominance_by_criterion(corpus, n_sessions=None, min_spikes=100,
+                           bins=((0, 50), (50, 90), (90, 100))):
+    """Old manuscript Figure 4B/4C, recomputed on the full corpus.
+
+    For each cluster the screen picks a unit channel and a reference channel.
+    "Dominance level" is that channel's PC coverage -- the fraction of the
+    cluster's spikes that have non-zero PC features there. A channel the unit
+    is barely present on is a poor choice however large its waveform looks.
+
+    Returns, per session, the % of clusters whose CHOSEN channel falls in each
+    dominance band, under two rules:
+
+      energy   what ships: `alpha = 1.0`, so the score is waveform energy
+      blend    a 50/50 weighting of energy and coverage, i.e. what the old
+               figure called the "dual criterion"
+
+    The old panels were made on 16 sessions. Per-session values are returned so
+    the spread can be drawn, not just a pooled number.
+    """
+    corpus = Path(corpus)
+    out = {'unit': {'energy': [], 'blend': []},
+           'reference': {'energy': [], 'blend': []},
+           'bins': [list(b) for b in bins], 'sessions': []}
+    files = sorted(corpus.glob('*/curated.json'))
+    if n_sessions:
+        files = files[:n_sessions]
+    for p in files:
+        ks = Path(json.loads(p.read_text())['ks_dir'])
+        try:
+            tm = np.load(ks / 'templates.npy')
+            pcfi = np.load(ks / 'pc_feature_ind.npy')
+            pcf = np.load(ks / 'pc_features.npy', mmap_mode='r')
+            sc = np.load(ks / 'spike_clusters.npy').ravel().astype(np.int64)
+        except Exception:
+            continue
+        got = {k: {'energy': [], 'blend': []} for k in ('unit', 'reference')}
+        for c in np.unique(sc):
+            if c >= tm.shape[0] or c >= pcfi.shape[0]:
+                continue
+            idx = np.where(sc == c)[0]
+            if idx.size < min_spikes:
+                continue
+            ch = pcfi[c].astype(int)
+            ch = ch[ch < tm.shape[2]]
+            if len(ch) < 3:
+                continue
+            ptp = np.sum(tm[c][:, ch] ** 2, axis=0)
+            if ptp.max() <= 0:
+                continue
+            f = np.asarray(pcf[np.sort(idx[:1500])][:, :3, :len(ch)])
+            nzr = 1.0 - np.mean(np.all(f == 0, axis=1), axis=0)
+            pn = ptp / ptp.max()
+            zn = nzr / (nzr.max() or 1)
+            blend = 0.5 * pn + 0.5 * zn
+            got['unit']['energy'].append(nzr[int(np.argmax(pn))])
+            got['unit']['blend'].append(nzr[int(np.argmax(blend))])
+            # the reference is the LOWEST-energy channel under each rule
+            got['reference']['energy'].append(nzr[int(np.argmin(ptp))])
+            got['reference']['blend'].append(nzr[int(np.argmin(blend))])
+        if not got['unit']['energy']:
+            continue
+        out['sessions'].append(p.parent.name)
+        for site in ('unit', 'reference'):
+            for rule in ('energy', 'blend'):
+                v = 100 * np.asarray(got[site][rule])
+                out[site][rule].append(
+                    [float(100 * np.mean((v >= lo) & (v <= hi))) for lo, hi in bins])
+    out['n_sessions'] = len(out['sessions'])
+    return out
+
+
+# Which kind of evidence a verdict rested on, named in the SCREEN's own terms.
+# The figure that introduces the decision rules comes later, so this panel must
+# not name them: at this point the reader knows only what the screen measures --
+# the unit against its reference channel, the unit against its neighbours, and
+# how both behave frame by frame.
+EVIDENCE = {
+    '4a reference channel': 'noise comparison',
+    '5a feature space': 'neighbour comparison',
+    '5b coincidence excess': 'neighbour comparison',
+    '5c refractory deficit': 'neighbour comparison',
+    '5d evidence incomplete': 'neighbour comparison',
+    '8 unattributed': 'measured, not attributable',
+}
+
+
+def verdicts_resting_on_screen(corpus):
+    """How much of the pipeline's output depends on what the screen measured.
+
+    A far more useful claim about a first-pass screen than its own accuracy:
+    the screen is a MEASUREMENT layer, and this is the share of final verdicts
+    that could not have been reached without it.
+
+    Also counts intermittent presence, the one class that only a per-frame
+    measurement can reveal -- every other test is a single snapshot, in which
+    a unit present for ten minutes and then silent looks like a sparse one.
+    """
+    from collections import Counter
+    corpus = Path(corpus)
+    kind, cls = Counter(), Counter()
+    total = 0
+    for p in sorted(corpus.glob('*/curated.json')):
+        for r in json.loads(p.read_text())['rows']:
+            total += 1
+            lab = r.get('rule_label') or r.get('rule')
+            kind[EVIDENCE.get(lab, 'decided without the screen')] += 1
+            cls[r.get('error_class')] += 1
+    on_screen = total - kind['decided without the screen']
+    return dict(n_clusters=total, by_evidence=dict(kind),
+                n_on_screen=on_screen, pct_on_screen=100 * on_screen / total,
+                intermittent=cls.get('intermittent_presence', 0),
+                error_class=dict(cls))
+
+
+def make_contribution_panel(ev, cost, out_svg):
+    """Panel E: what the screen buys, in the screen's own vocabulary.
+
+    NOT 'how accurate is the screen'. Its verdict is a first pass that the
+    later stage overrides where they disagree, so scoring it alone answers a
+    question it was not built to win -- and on a corpus that is 47% adversarial
+    pairs the aggregate reports composition anyway. What it IS for is the
+    measurement, and this is the share of final verdicts that rest on it.
+
+    No rule is named: the rules are introduced later, and at this point the
+    reader knows only the three things the screen measures.
+    """
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from . import style
+    style.apply()
+    C, SZ = style.C, style.SZ
+    fig = plt.figure(figsize=(style.W_IN, 1.70))
+    gs = fig.add_gridspec(2, 1, height_ratios=[1.0, 0.50], hspace=1.05,
+                          left=0.022, right=0.985, top=0.76, bottom=0.10)
+
+    ax = fig.add_subplot(gs[0])
+    parts = [('noise comparison', ev['by_evidence'].get('noise comparison', 0), C['teal']),
+             ('neighbour comparison', ev['by_evidence'].get('neighbour comparison', 0), '#4FA08C'),
+             ('not attributable', ev['by_evidence'].get('measured, not attributable', 0), '#A8D0C6'),
+             ('decided without it', ev['by_evidence'].get('decided without the screen', 0), C['rule'])]
+    tot, left = ev['n_clusters'], 0.0
+    for lab, n, col in parts:
+        w = 100 * n / tot
+        ax.barh(0, w, left=left, height=0.46, color=col, linewidth=0)
+        if w > 8:
+            ax.text(left + w / 2, 0, f'{w:.1f}%', ha='center', va='center',
+                    fontsize=SZ['tick'],
+                    color='white' if col != C['rule'] else C['grey'],
+                    fontweight='bold')
+        left += w
+    ax.set_xlim(0, 100); ax.set_ylim(-1.15, 0.5)
+    ax.set_yticks([]); ax.set_xticks([])
+    for sp in ax.spines.values():
+        sp.set_visible(False)
+    # fixed label columns: the third segment is 1.4% wide, so labels placed at
+    # their own segment's start collide with the next one
+    cols = [(0, 'left'), (24, 'left'), (48, 'left'), (100, 'right')]
+    for (lab, n, col), (x, ha) in zip(parts, cols):
+        ax.text(x, -0.52, f'{lab}\n{n:,}', fontsize=SZ['tick'],
+                color=col if col != C['rule'] else C['grey'], va='top',
+                linespacing=1.4, ha=ha)
+    ax.set_title(f"{ev['pct_on_screen']:.0f}% of all "
+                 f"{ev['n_clusters']:,} verdicts rest on what the screen measured",
+                 loc='left', fontsize=SZ['sub'])
+
+    ax2 = fig.add_subplot(gs[1]); ax2.axis('off')
+    ax2.set_xlim(0, 100); ax2.set_ylim(0, 100)
+    ax2.text(0, 88, f"{ev['intermittent']:,} clusters are intermittently present — "
+             "a class only a per-frame measurement can see", fontsize=SZ['lab'],
+             color=C['ink'], va='top')
+    ax2.text(0, 36, "every other test is a single snapshot, in which a unit present "
+             "for ten minutes and then silent looks like a sparse one",
+             fontsize=SZ['tick'], color=C['neutral'], va='top')
+    if 'screen' in cost:
+        ax2.text(100, 88, f"{cost['screen']['ms_per_cluster']:.0f} ms per cluster",
+                 fontsize=SZ['lab'], color=C['teal'], fontweight='bold',
+                 ha='right', va='top')
+    _save(fig, out_svg)
     return out_svg
