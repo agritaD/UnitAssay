@@ -69,7 +69,8 @@ def threshold_sweep(corpus, n_lratio_sessions=10,
         else np.asarray(t_grid)
 
     passed = {g: 0 for g in l_grid}
-    n_clu = 0
+    lratio_values = []          # per cluster: median over frames of the
+    n_clu = 0                   # per-frame max across noise and neighbours
     for p in sorted(corpus.glob('*/curated.json'))[:n_lratio_sessions]:
         for h5p in sorted((p.parent / 'isolation').glob('*.SortData.h5')):
             try:
@@ -99,6 +100,7 @@ def threshold_sweep(corpus, n_lratio_sessions=10,
             if not ok.any():
                 continue
             n_clu += 1
+            lratio_values.append(float(np.median(lr[ok])))
             for g_ in l_grid:
                 passed[g_] += int(np.mean(lr[ok] < g_) >= SHIPPED_T_RATIO)
 
@@ -109,7 +111,9 @@ def threshold_sweep(corpus, n_lratio_sessions=10,
                        n=int(frac.size)),
         lratio=dict(l=list(l_grid),
                     pct_pass=[100 * passed[g] / max(n_clu, 1) for g in l_grid],
-                    n=n_clu, n_sessions=n_lratio_sessions))
+                    n=n_clu, n_sessions=n_lratio_sessions,
+                    values=lratio_values),
+        stability_values=frac.tolist())
 
 
 def screen_vs_sorter(results_json):
@@ -217,45 +221,62 @@ def _save(fig, out):
 
 
 def make_threshold_panel(sweep, out_svg):
-    """Panel D: how the pass rate moves with each shipped threshold."""
+    """Panel D: where each shipped threshold sits in the data it cuts.
+
+    A SWEEP OF THE PASS RATE WAS THE WRONG PICTURE. It shows yield, and yield
+    is maximised by a threshold that passes everything -- so the curve cannot
+    argue for an operating point. The distribution can: the density AT the
+    threshold IS the slope of that curve, so this carries the same sensitivity
+    information and also shows whether the cut lands in a sparse region (robust)
+    or on a peak (where a small change moves many clusters).
+    """
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
+    import numpy as _np
     from . import style
     style.apply()
     C, SZ = style.C, style.SZ
-    fig, (a, b) = plt.subplots(1, 2, figsize=(style.W_IN * 0.52, 1.95),
-                               gridspec_kw=dict(wspace=0.46, left=0.11,
-                                                right=0.985, top=0.84,
-                                                bottom=0.30))
-    L = sweep['lratio']
-    a.plot(L['l'], L['pct_pass'], '-o', ms=2.4, lw=1.0, color=C['teal'])
-    a.axvline(sweep['shipped']['l_ratio'], color=C['warm'], lw=0.9,
-              ls=(0, (3, 2)))
-    a.set_xscale('log')
-    # a tick at every swept value collides on a log axis; label the decades
-    # plus the shipped point, and let the markers show where the rest sit
-    ticks = [0.05, 0.1, sweep['shipped']['l_ratio'], 0.4, 1.0]
-    a.set_xticks(ticks); a.set_xticklabels([str(t) for t in ticks])
-    a.minorticks_off()
-    a.set_xlabel('L-ratio threshold'); a.set_ylabel('% of clusters passing')
-    a.set_ylim(0, 100)
-    a.set_title(f"(i) L-ratio · shipped {sweep['shipped']['l_ratio']}",
-                loc='left', fontsize=SZ['tick'])
-    a.text(0.97, 0.06, f"n = {L['n']:,}", transform=a.transAxes, ha='right',
-           fontsize=SZ['tick'], color=C['neutral'])
+    fig, (a, b) = plt.subplots(1, 2, figsize=(style.W_IN * 0.54, 1.75),
+                               gridspec_kw=dict(wspace=0.40, left=0.095,
+                                                right=0.985, top=0.76,
+                                                bottom=0.28))
+    thr_l = sweep['shipped']['l_ratio']
+    thr_t = sweep['shipped']['t_ratio']
 
-    S = sweep['stability']
-    b.plot(S['t'], S['pct_pass'], '-', lw=1.1, color=C['teal'])
-    b.axvline(sweep['shipped']['t_ratio'], color=C['warm'], lw=0.9,
-              ls=(0, (3, 2)))
-    b.set_xlabel('stability threshold\n(fraction of frames clean)',
-                 linespacing=1.4)
-    b.set_ylabel('% of clusters passing'); b.set_ylim(0, 100)
-    b.set_title(f"(ii) stability · shipped {sweep['shipped']['t_ratio']}",
-                loc='left', fontsize=SZ['tick'])
-    b.text(0.97, 0.9, f"n = {S['n']:,}", transform=b.transAxes, ha='right',
-           fontsize=SZ['tick'], color=C['neutral'])
+    v = _np.asarray(sweep['lratio'].get('values') or [])
+    v = v[_np.isfinite(v) & (v > 0)]
+    if v.size:
+        bins = _np.logspace(_np.log10(max(v.min(), 1e-4)),
+                            _np.log10(max(v.max(), 1e-3)), 44)
+        a.hist(v, bins=bins, color=C['teal'], linewidth=0, rwidth=0.9)
+        a.set_xscale('log')
+    a.axvline(thr_l, color=C['warm'], lw=1.0, ls=(0, (3, 2)))
+    a.text(thr_l, a.get_ylim()[1] * 1.02, f'{thr_l}', color=C['warm'],
+           fontsize=SZ['tick'], fontweight='bold', va='bottom', ha='center')
+    a.set_xlabel("cluster's L-ratio (median over frames)")
+    a.set_ylabel('clusters')
+    a.set_title('(i) the separation statistic', loc='left', fontsize=SZ['tick'])
+    a.text(0.98, 0.96, f'n = {v.size:,}', transform=a.transAxes, ha='right',
+           va='top', fontsize=SZ['tick'], color=C['neutral'])
+
+    f = _np.asarray(sweep.get('stability_values') or [])
+    b.hist(f, bins=_np.linspace(0, 1, 41), color=C['teal'], linewidth=0,
+           rwidth=0.9)
+    b.axvline(thr_t, color=C['warm'], lw=1.0, ls=(0, (3, 2)))
+    b.text(thr_t, b.get_ylim()[1] * 1.02, f'{thr_t}', color=C['warm'],
+           fontsize=SZ['tick'], fontweight='bold', va='bottom', ha='center')
+    b.set_xlabel('fraction of frames the cluster is clean')
+    b.set_ylabel('clusters')
+    b.set_title('(ii) the stability statistic', loc='left', fontsize=SZ['tick'])
+    b.text(0.98, 0.96, f'n = {f.size:,}', transform=b.transAxes, ha='right',
+           va='top', fontsize=SZ['tick'], color=C['neutral'])
+    for ax_, thr, data in ((a, thr_l, v), (b, thr_t, f)):
+        if data.size:
+            frac_pass = (data < thr).mean() if ax_ is a else (data >= thr).mean()
+            ax_.text(0.98, 0.82, f'{100*frac_pass:.0f}% pass',
+                     transform=ax_.transAxes, ha='right', va='top',
+                     fontsize=SZ['tick'], color=C['warm'], fontweight='bold')
     _save(fig, out_svg)
     return out_svg
 
