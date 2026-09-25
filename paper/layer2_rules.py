@@ -514,7 +514,7 @@ def decision_flow_counts(corpus_dir):
     from unitassay.curate.decision_flow import STAGE, STAGE_QUESTION
     corpus_dir = Path(corpus_dir)
     fail, pas = {}, {}
-    subs = {}
+    subs, classes = {}, {}
     n_sessions = 0
     for path in sorted(corpus_dir.glob('*/curated.json')):
         n_sessions += 1
@@ -527,6 +527,11 @@ def decision_flow_counts(corpus_dir):
             d[stg] = d.get(stg, 0) + 1
             subs.setdefault(stg, {})
             subs[stg][rid] = subs[stg].get(rid, 0) + 1
+            # what a terminal bucket is MADE OF -- the figure has to say how
+            # fall-through differs from an attributed failure
+            ecl = row.get('error_class') or 'unclassified'
+            classes.setdefault(stg, {})
+            classes[stg][ecl] = classes[stg].get(ecl, 0) + 1
 
     order = ['1-identity', '2-refractory', '3-composition', '4-contamination',
              '5-neighbour', '6-unresolved', '7-clean', '8-fall-through']
@@ -534,7 +539,13 @@ def decision_flow_counts(corpus_dir):
     out, remaining = [], total
     for stg in order:
         f, p = fail.get(stg, 0), pas.get(stg, 0)
-        out.append(dict(stage=stg, label=stg.split('-', 1)[1],
+        comp = ''
+        if stg in ('7-clean', '8-fall-through'):
+            cls = classes.get(stg, {})
+            top = sorted(cls.items(), key=lambda kv: -kv[1])[:3]
+            comp = '   '.join(f'{k.replace(chr(95), chr(32))} {v:,}'
+                              for k, v in top)
+        out.append(dict(stage=stg, label=stg.split('-', 1)[1], composition=comp,
                         question=STAGE_QUESTION[stg], fail=f, pas=p,
                         entering=remaining, remaining=remaining - f - p,
                         subs=dict(sorted(subs.get(stg, {}).items())),

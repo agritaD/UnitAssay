@@ -37,8 +37,8 @@ SHORT_Q = {
     '4-contamination': 'Is it polluted by something\nthis cluster alone can see?',
     '5-neighbour': 'Is it separable from the\nneighbours it is tested against?',
     '6-unresolved': 'Could it be tested at all?',
-    '7-clean': 'Nothing found.',
-    '8-fall-through': 'Nothing claimed it.',
+    '7-clean': 'No rule found anything,\nand layer 1 passed it.',
+    '8-fall-through': 'No rule explains it,\nbut layer 1 rejected it.',
 }
 VERDICT = {'1-identity': 'duplicate', '2-refractory': 'over-split',
            '3-composition': 'over-merge / over-split',
@@ -143,20 +143,32 @@ def make_decision_flow(flow, out_path, width_in=7.4, height_in=13.2):
     for (s, col, side, verdict) in ((clean, C_PASS, -1, 'PASS'),
                                     (fall, C_FAIL, +1, 'FAIL')):
         cx = bx + bw / 2 + side * 0.185
-        ax.add_patch(FancyBboxPatch((cx - 0.158, ty - 0.055), 0.316, 0.100,
+        ax.add_patch(FancyBboxPatch((cx - 0.166, ty - 0.068), 0.332, 0.124,
                                     boxstyle='round,pad=0.005,rounding_size=0.012',
                                     facecolor='white', edgecolor=col, lw=1.1,
                                     zorder=3))
-        ax.annotate('', xy=(cx, ty + 0.045), xytext=(bx + bw / 2, Y_TERM + 0.085),
+        ax.annotate('', xy=(cx, ty + 0.058), xytext=(bx + bw / 2, Y_TERM + 0.085),
                     arrowprops=dict(arrowstyle='-|>', color=col, lw=1.2,
                                     connectionstyle='arc3,rad=%.2f' % (0.12 * side)))
         n = s['pas'] or s['fail']
-        ax.text(cx, ty + 0.023, s['label'].upper(), ha='center', va='center',
+        ax.text(cx, ty + 0.036, s['label'].upper(), ha='center', va='center',
                 fontsize=7.6, weight='bold', color=col, zorder=4)
-        ax.text(cx, ty - 0.002, f'{verdict}  {n:,}', ha='center', va='center',
+        ax.text(cx, ty + 0.012, f'{verdict}  {n:,}', ha='center', va='center',
                 fontsize=8.8, weight='semibold', color=col, zorder=4)
-        ax.text(cx, ty - 0.034, SHORT_Q[s['stage']].replace('\n', ' '),
-                ha='center', va='center', fontsize=6.6, color=GREY, zorder=4)
+        ax.text(cx, ty - 0.018, SHORT_Q[s['stage']], ha='center',
+                va='center', fontsize=6.9, color=GREY, zorder=4,
+                linespacing=1.3)
+        # WHAT IS ACTUALLY IN THE BUCKET. 'Nothing claimed it' is accurate and
+        # says nothing: a reader cannot tell how this differs from the four
+        # attributed failures above. Every one of these 726 has
+        # screen_pass=False, so layer 1 objected and layer 2 could not explain
+        # the objection -- and 102 of them are the intermittent-presence class
+        # layer 2 has no rule for, which is why a row of this figure is drawn
+        # from here.
+        comp = s.get('composition')
+        if comp:
+            ax.text(cx, ty - 0.050, comp, ha='center', va='center',
+                    fontsize=5.9, color=col, alpha=.85, zorder=4)
 
     # --- what the whole flow produced. ONE ARROW PER BOX, not a rail
     #     collecting every exit: rails drawn from all five FAIL exits crossed
@@ -164,7 +176,7 @@ def make_decision_flow(flow, out_path, width_in=7.4, height_in=13.2):
     fy = Y_TOTAL
     for (s_, col, side) in ((clean, C_PASS, -1), (fall, C_FAIL, +1)):
         cx = bx + bw / 2 + side * 0.185
-        ax.annotate('', xy=(cx, fy + 0.046), xytext=(cx, Y_TERM - 0.058),
+        ax.annotate('', xy=(cx, fy + 0.046), xytext=(cx, Y_TERM - 0.070),
                     arrowprops=dict(arrowstyle='-|>', color=col, lw=1.2))
     ax.plot([0.10, 0.90], [fy + 0.048, fy + 0.048], color='#D8DCE6', lw=0.8)
     ax.text(bx + bw / 2 - 0.185, fy, f"PASS  {flow['n_pass']:,}", ha='center',
