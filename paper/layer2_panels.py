@@ -47,7 +47,6 @@ import math
 from pathlib import Path
 
 import numpy as np
-from matplotlib import patheffects as _pe
 
 from matplotlib.ticker import MaxNLocator
 
@@ -60,21 +59,22 @@ from unitassay.screen.io.ks_loader import load_ks_dir
 N_PC = 3
 FS = 30000.0
 
-C_UNIT = '#3953A4'
-C_SPLIT = '#F58430'
 # Red for a cluster INSIDE layer 1's pool -- same peak channel, one of the
 # clusters its L-ratio was measured against. Pink for one OUTSIDE it, which
 # only layer 2 ever reaches. Agrita: a duplicate's partner is on a different
 # channel by definition, so it should not be drawn in the colour that means
 # "layer 1 compared these". Both hues validated all-pairs for CVD against the
 # unit blue and the split orange (worst pair dE 15.6 deutan).
-C_SAME_POOL = '#BF1E2D'
-C_OFF_POOL = '#E386B7'
+C_SAME_POOL = '#C2185B'     # another cluster INSIDE layer 1's pool
+C_OFF_POOL = '#E386B7'      # one outside it -- lighter shade of the same family
 C_OTHER = (C_SAME_POOL, C_OFF_POOL)
-C_REF = '#8A8F98'
-C_FIRE = '#D55E00'
+C_REF = '#9AA3AE'           # the reference channel: a channel, not a cluster
+C_FRAME = '#14213D'         # the panel whose evidence the rule read
+C_WASH = '#EFF2F7'          # its background, instead of a coloured border
 C_QUIET = '#5B6470'
-C_HIST = '#6E7681'
+C_UNIT = '#3953A4'     # this cluster -- the manuscript/layer-1 blue
+C_SPLIT = '#0AAA4B'    # the minority group the imposed split peels off
+C_HIST = '#7A828C'
 
 
 def _isfinite(x):
@@ -282,6 +282,14 @@ def partner_template_on(ks_dir, clu_id, channel):
         return None
 
 
+def _rebin(centers, counts, k):
+    """Pair up k adjacent bins for display."""
+    n = (len(counts) // k) * k
+    c = np.asarray(counts[:n], float).reshape(-1, k).sum(1)
+    x = np.asarray(centers[:n], float).reshape(-1, k).mean(1)
+    return x, c
+
+
 def _running(t, y, n_bins=26):
     """Median of y in equal time bins -- the trace laid over the dots."""
     if t.size < 8:
@@ -326,9 +334,16 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
     pcol = ocol.get(primary['clu_id'], C_SAME_POOL) if primary else C_SAME_POOL
 
     def frame(ax, col):
-        for sp_ in ax.spines.values():
-            sp_.set_linewidth(2.0 if col == fired else 0.6)
-            sp_.set_color(C_FIRE if col == fired else '#B9BEC6')
+        # The evidence the rule read gets a pale wash and a darker edge. A
+        # thick coloured border competed with the data for attention and put a
+        # fifth hue on the page.
+        hot = (col == fired)
+        if hot:
+            ax.set_facecolor(C_WASH)
+        for side, sp_ in ax.spines.items():
+            sp_.set_visible(side in ('left', 'bottom') or hot)
+            sp_.set_linewidth(1.1 if hot else 0.6)
+            sp_.set_color(C_FRAME if hot else '#C7CCD4')
 
     def tag(ax, txt, col, y, size=5.5):
         ax.text(.03, y, txt, transform=ax.transAxes, fontsize=size,
@@ -383,7 +398,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
             bins = np.logspace(-1, np.log10(max(isi.max(), 10)), 40)
             a_isi.hist(isi, bins=bins, color=C_HIST, lw=0)
             a_isi.set_xscale('log')
-            a_isi.axvspan(0.1, 1.0, color=C_FIRE, alpha=.16, lw=0)
+            a_isi.axvspan(0.1, 1.0, color=C_QUIET, alpha=.13, lw=0)
     frame(a_isi, 'isi')
 
     dp = rec_row.get('_dip_pval')
@@ -468,7 +483,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
             note = f'dip p = {dp:.3f}'
             if dip_sig and not split_is_real:
                 note += f'  ({verdict})'
-            tag(a_prj, note, C_FIRE if split_is_real else C_QUIET, .97)
+            tag(a_prj, note, C_SPLIT if split_is_real else C_QUIET, .97)
         if rec_row.get('dip_basis'):
             # bottom right: the basis string runs long and collided with the
             # p-value once the verdict was appended to it
@@ -529,7 +544,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                       color=pcol, alpha=.85, linewidths=0)
         mx, my = _running(primary['times'] / 60, primary['amps'])
         if mx is not None:
-            a_amp.plot(mx, my, color=pcol, lw=2.0, path_effects=[_pe.Stroke(linewidth=2.9, foreground='white'), _pe.Normal()])
+            a_amp.plot(mx, my, color=pcol, lw=2.0)
     msk = data.get('split_mask')
     if (st.size and lab_claim is not None and msk is not None
             and int(np.sum(msk)) == len(lab_claim)):
@@ -546,17 +561,17 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                 if gx is not None:
                     # a bare line disappears into its own point cloud; the
                     # white halo is what makes each trace readable
-                    a_amp.plot(gx, gy, color=col, lw=2.0, path_effects=[_pe.Stroke(linewidth=2.9, foreground='white'), _pe.Normal()])
+                    a_amp.plot(gx, gy, color=col, lw=2.0)
     elif st.size:
         a_amp.scatter(st / 60, data['amps'], s=2.6, color=C_UNIT, alpha=.85,
                       linewidths=0)
         mx, my = _running(st / 60, data['amps'])
         if mx is not None:
-            a_amp.plot(mx, my, color=C_UNIT, lw=2.0, path_effects=[_pe.Stroke(linewidth=2.9, foreground='white'), _pe.Normal()])
+            a_amp.plot(mx, my, color=C_UNIT, lw=2.0)
     af = rec_row.get('absent_frame_frac')
     if _isfinite(af) and af > 0:
         tag(a_amp, f'absent {af:.0%}',
-            C_FIRE if af > ABSENT_FRAME_FRAC_THRESH else C_QUIET, .97)
+            C_FRAME if af > ABSENT_FRAME_FRAC_THRESH else C_QUIET, .97)
     frame(a_amp, 'amplitude')
 
     # --- CCG against that SAME comparison cluster
@@ -569,20 +584,22 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         centers, counts = compute_ccg(st * FS, primary['times'] * FS,
                                       window_ms=CCG_WINDOW_MS,
                                       bin_ms=CCG_BIN_MS, fs=FS)
-        a_ccg.fill_between(centers, counts, step='mid', color=C_HIST,
-                           lw=0, alpha=.95)
-        a_ccg.set_ylim(0, max(1.0, float(counts.max()) * 1.25))
-        a_ccg.axvspan(-1, 1, color=C_FIRE, alpha=.20, lw=0)
+        # WIDER BARS. The gate's 0.5 ms bins give 100 spikes of noise across
+        # the window, in which an empty centre is invisible; paired into 1 ms
+        # bins the silhouette reads, and a re-detection's lag is still
+        # resolved. The gate's own resolution is unchanged -- the modal lag
+        # printed below is measured on the 0.5 ms bins.
+        centers, counts = _rebin(centers, counts, 2)
+        a_ccg.bar(centers, counts, width=(centers[1] - centers[0]) * 0.92,
+                  color=C_HIST, lw=0, alpha=.95)
+        a_ccg.set_ylim(0, max(1.0, float(counts.max()) * 1.22))
+        a_ccg.axvspan(-1, 1, color=C_QUIET, alpha=.15, lw=0)
         # DRAW THE LEVEL THE CENTRE IS JUDGED AGAINST. The statistic compares
         # the +-1 ms window with the 5-20 ms flanks, and at three counts a bin
         # an empty centre is invisible against a noisy silhouette -- the dip
         # row read as noise while the duplicate's needle read instantly. With
         # the flank mean drawn, a hole below the line and a spike above it are
         # both obvious, and it is the comparison the test actually makes.
-        _fl = counts[(np.abs(centers) > 5) & (np.abs(centers) <= 20)]
-        if _fl.size:
-            a_ccg.axhline(float(_fl.mean()), color=C_QUIET, lw=0.7, ls='--',
-                          dashes=(4, 3), zorder=4)
         # THE LAG IS THE TEST, NOT THE EXCESS. Re-detections peak OFF zero --
         # the duplicate exemplars sit at +/-0.25 to 1.35 ms -- which is why a
         # zero-centred coincidence test (SpikeInterface's delta_time=0.4)
@@ -605,7 +622,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                 # is showing is the EMPTY centre, so report that instead.
                 note = f'refractory dip\ndip ratio {ratio:.2f}'
             else:
-                a_ccg.axvline(ml, color=C_FIRE, lw=0.8, ls=':')
+                a_ccg.axvline(ml, color=C_FRAME, lw=0.8, ls=':')
                 # FOR A DUPLICATE, QUOTE THE CRITERION THAT WAS APPLIED. The
                 # dip ratio averages over +-1 ms, so a re-detection's needle --
                 # one 0.5 ms bin -- is diluted to about 1.3 and comes out
@@ -631,10 +648,16 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         centers, counts = compute_ccg(st * FS, st * FS,
                                       window_ms=CCG_WINDOW_MS,
                                       bin_ms=CCG_BIN_MS, fs=FS)
-        a_ccg.fill_between(centers, counts, step='mid', color=C_HIST,
-                           lw=0, alpha=.95)
-        a_ccg.set_ylim(0, max(1.0, float(counts.max()) * 1.25))
-        a_ccg.axvspan(-1, 1, color=C_FIRE, alpha=.20, lw=0)
+        # WIDER BARS. The gate's 0.5 ms bins give 100 spikes of noise across
+        # the window, in which an empty centre is invisible; paired into 1 ms
+        # bins the silhouette reads, and a re-detection's lag is still
+        # resolved. The gate's own resolution is unchanged -- the modal lag
+        # printed below is measured on the 0.5 ms bins.
+        centers, counts = _rebin(centers, counts, 2)
+        a_ccg.bar(centers, counts, width=(centers[1] - centers[0]) * 0.92,
+                  color=C_HIST, lw=0, alpha=.95)
+        a_ccg.set_ylim(0, max(1.0, float(counts.max()) * 1.22))
+        a_ccg.axvspan(-1, 1, color=C_QUIET, alpha=.15, lw=0)
         tag(a_ccg, 'autocorrelogram (no neighbour)', C_QUIET, .97)
     frame(a_ccg, 'ccg')
 
