@@ -416,6 +416,14 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
             res = None
     lab = (np.asarray(res['labels'])
            if (res and res.get('labels') is not None) else None)
+    # WHICH GROUP IS 0 IS ARBITRARY. The splitter labels its two groups in
+    # whatever order the fit produced, so the same colour meant "most of the
+    # cluster" on one row and "the peeled-off part" on the next -- on the
+    # excess-at-zero row orange was the majority, which reads as the cluster
+    # being mostly the minority population. Blue is the majority everywhere
+    # now, orange the smaller group.
+    if lab is not None and lab.size and (lab == 1).sum() > (lab == 0).sum():
+        lab = 1 - lab
     # WHERE ORANGE IS LICENSED (Agrita). The within-cluster PC and the 1-D
     # projection are ABOUT the imposed split and say so, so they show it on
     # every row -- that is how a reader sees it fail to separate. The
@@ -432,14 +440,14 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         fw = data['feats']
         if lab is not None and len(lab) == len(fw):
             a_win.scatter(fw[lab == 0, 0], fw[lab == 0, 1], s=2.6,
-                          color=C_UNIT, alpha=.85, linewidths=0)
+                          color=C_UNIT, alpha=.92, linewidths=0)
             a_win.scatter(fw[lab == 1, 0], fw[lab == 1, 1], s=2.6,
-                          color=C_SPLIT, alpha=.85, linewidths=0)
+                          color=C_SPLIT, alpha=.92, linewidths=0)
             tag(a_win, 'imposed split', C_SPLIT if split_is_real else C_QUIET,
                 .97)
         else:
-            a_win.scatter(fw[:, 0], fw[:, 1], s=2.6, color=C_UNIT,
-                          alpha=.85, linewidths=0)
+            a_win.scatter(fw[:, 0], fw[:, 1], s=3.0, color=C_UNIT,
+                          alpha=.92, linewidths=0)
             tag(a_win, 'split not computed', C_QUIET, .97)
     frame(a_win, 'within_pc')
 
@@ -464,8 +472,12 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         if rec_row.get('dip_basis'):
             # bottom right: the basis string runs long and collided with the
             # p-value once the verdict was appended to it
-            a_prj.text(.97, .04, rec_row['dip_basis'], transform=a_prj.transAxes,
-                       fontsize=4.5, color=C_QUIET, ha='right', va='bottom')
+            # first token only: the full string ('negligible_satellite+
+            # large_tested') runs the width of the panel and lands on the
+            # tick labels
+            a_prj.text(.97, .88, str(rec_row['dip_basis']).split('+')[0],
+                       transform=a_prj.transAxes, fontsize=4.5,
+                       color=C_QUIET, ha='right', va='top')
     else:
         a_prj.text(.5, .5, 'dip not evaluated', ha='center', va='center',
                    transform=a_prj.transAxes, fontsize=6, color=C_QUIET)
@@ -478,19 +490,19 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
     fs_pair = data.get('fs_aligned')
     if fs_pair is not None:
         fa, fb, oid, n_shared = fs_pair
-        a_btw.scatter(fb[:, 0], fb[:, 1], s=2.6, color=ocol.get(oid, C_OTHER[0]),
-                      alpha=.80, linewidths=0)
+        a_btw.scatter(fb[:, 0], fb[:, 1], s=3.0, color=ocol.get(oid, C_OTHER[0]),
+                      alpha=.92, linewidths=0)
         reg = data.get('fs_unit_registered')
         if lab_claim is not None and reg is not None and len(reg) == len(lab_claim):
             # An over-merge is two populations in ONE cluster, so the question
             # this panel has to answer is WHICH of them sits on the neighbour.
             # Drawn in one colour it cannot answer it.
             a_btw.scatter(reg[lab_claim == 0, 0], reg[lab_claim == 0, 1],
-                          s=2.6, color=C_UNIT, alpha=.80, linewidths=0)
+                          s=3.0, color=C_UNIT, alpha=.92, linewidths=0)
             a_btw.scatter(reg[lab_claim == 1, 0], reg[lab_claim == 1, 1],
-                          s=2.6, color=C_SPLIT, alpha=.80, linewidths=0)
+                          s=3.0, color=C_SPLIT, alpha=.92, linewidths=0)
         else:
-            a_btw.scatter(fa[:, 0], fa[:, 1], s=2.6, color=C_UNIT, alpha=.80,
+            a_btw.scatter(fa[:, 0], fa[:, 1], s=3.0, color=C_UNIT, alpha=.80,
                           linewidths=0)
         role = next((o['role'] for o in others if o['clu_id'] == oid), '')
         tag(a_btw, f'vs clu {oid} ({role})', ocol.get(oid, C_OTHER[0]), .97)
@@ -514,7 +526,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
     if primary is not None and primary.get('times') is not None \
             and primary['times'].size:
         a_amp.scatter(primary['times'] / 60, primary['amps'], s=2.2,
-                      color=pcol, alpha=.55, linewidths=0)
+                      color=pcol, alpha=.85, linewidths=0)
         mx, my = _running(primary['times'] / 60, primary['amps'])
         if mx is not None:
             a_amp.plot(mx, my, color=pcol, lw=2.0, path_effects=[_pe.Stroke(linewidth=2.9, foreground='white'), _pe.Normal()])
@@ -528,7 +540,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         for g, col in ((0, C_UNIT), (1, C_SPLIT)):
             m = (lab_claim == g)
             if m.sum():
-                a_amp.scatter(ts[m], as_[m], s=2.2, color=col, alpha=.65,
+                a_amp.scatter(ts[m], as_[m], s=2.6, color=col, alpha=.65,
                               linewidths=0)
                 gx, gy = _running(ts[m], as_[m])
                 if gx is not None:
@@ -536,7 +548,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                     # white halo is what makes each trace readable
                     a_amp.plot(gx, gy, color=col, lw=2.0, path_effects=[_pe.Stroke(linewidth=2.9, foreground='white'), _pe.Normal()])
     elif st.size:
-        a_amp.scatter(st / 60, data['amps'], s=2.2, color=C_UNIT, alpha=.65,
+        a_amp.scatter(st / 60, data['amps'], s=2.6, color=C_UNIT, alpha=.85,
                       linewidths=0)
         mx, my = _running(st / 60, data['amps'])
         if mx is not None:
@@ -557,9 +569,20 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         centers, counts = compute_ccg(st * FS, primary['times'] * FS,
                                       window_ms=CCG_WINDOW_MS,
                                       bin_ms=CCG_BIN_MS, fs=FS)
-        a_ccg.bar(centers, counts, width=(centers[1] - centers[0]),
-                  color=C_HIST, lw=0)
-        a_ccg.axvspan(-1, 1, color=C_FIRE, alpha=.16, lw=0)
+        a_ccg.fill_between(centers, counts, step='mid', color=C_HIST,
+                           lw=0, alpha=.95)
+        a_ccg.set_ylim(0, max(1.0, float(counts.max()) * 1.25))
+        a_ccg.axvspan(-1, 1, color=C_FIRE, alpha=.20, lw=0)
+        # DRAW THE LEVEL THE CENTRE IS JUDGED AGAINST. The statistic compares
+        # the +-1 ms window with the 5-20 ms flanks, and at three counts a bin
+        # an empty centre is invisible against a noisy silhouette -- the dip
+        # row read as noise while the duplicate's needle read instantly. With
+        # the flank mean drawn, a hole below the line and a spike above it are
+        # both obvious, and it is the comparison the test actually makes.
+        _fl = counts[(np.abs(centers) > 5) & (np.abs(centers) <= 20)]
+        if _fl.size:
+            a_ccg.axhline(float(_fl.mean()), color=C_QUIET, lw=0.7, ls='--',
+                          dashes=(4, 3), zorder=4)
         # THE LAG IS THE TEST, NOT THE EXCESS. Re-detections peak OFF zero --
         # the duplicate exemplars sit at +/-0.25 to 1.35 ms -- which is why a
         # zero-centred coincidence test (SpikeInterface's delta_time=0.4)
@@ -608,9 +631,10 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         centers, counts = compute_ccg(st * FS, st * FS,
                                       window_ms=CCG_WINDOW_MS,
                                       bin_ms=CCG_BIN_MS, fs=FS)
-        a_ccg.bar(centers, counts, width=(centers[1] - centers[0]),
-                  color=C_HIST, lw=0)
-        a_ccg.axvspan(-1, 1, color=C_FIRE, alpha=.16, lw=0)
+        a_ccg.fill_between(centers, counts, step='mid', color=C_HIST,
+                           lw=0, alpha=.95)
+        a_ccg.set_ylim(0, max(1.0, float(counts.max()) * 1.25))
+        a_ccg.axvspan(-1, 1, color=C_FIRE, alpha=.20, lw=0)
         tag(a_ccg, 'autocorrelogram (no neighbour)', C_QUIET, .97)
     frame(a_ccg, 'ccg')
 
@@ -619,6 +643,23 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         if not show_xlabels:
             ax.set_xticklabels([])
         ax.set_yticks([])
+    AXLAB = ((a_wf, 'time (ms)', 'norm. amplitude'),
+             (a_isi, 'ISI (ms)', 'count'),
+             (a_win, 'PC 1', 'PC 2'),
+             (a_prj, 'LDA projection', 'count'),
+             (a_btw, 'PC 1 (shared ch)', 'PC 2'),
+             (a_ccg, 'lag (ms)', 'coincidences'))
+    for ax, xl, yl in AXLAB:
+        ax.set_xlabel(xl, fontsize=5.5, labelpad=1)
+        ax.set_ylabel(yl, fontsize=5.5, labelpad=1)
+        ax.tick_params(labelsize=4.5, length=2, pad=1, labelleft=True,
+                       labelbottom=True)
+        ax.yaxis.set_major_locator(MaxNLocator(3))
+        if ax is not a_isi:                       # log axis picks its own
+            ax.xaxis.set_major_locator(MaxNLocator(4))
+        for t in ax.get_xticklabels():
+            t.set_visible(True)
+
     # EVERY ROW GETS ITS OWN AMPLITUDE AXES. Recording length and amplitude
     # scale differ from row to row -- 6 to 37 minutes across these six -- so
     # tick labels only on the bottom row would be read as applying to all of
