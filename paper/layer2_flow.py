@@ -60,7 +60,7 @@ METRIC = {
     '2-refractory': 'ISI violation ratio, burst-corrected',
     '3-composition': "Hartigan's dip on the LDA projection, p < 0.05",
     '4-contamination': 'L-ratio against the reference channel',
-    '5-neighbour': 'L-ratio in shared-channel PC space,\nCCG excess and refractory deficit',
+    '5-neighbour': 'shared-channel PC L-ratio, CCG excess and deficit',
     '7-clean': '', '8-fall-through': '', '6-unresolved': '',
 }
 VERDICT = {'1-identity': 'duplicate', '2-refractory': 'over-split',
@@ -70,7 +70,7 @@ VERDICT = {'1-identity': 'duplicate', '2-refractory': 'over-split',
            '7-clean': 'clean', '8-fall-through': 'unattributed'}
 
 
-def make_decision_flow(flow, out_path, width_in=7.6, height_in=11.0):
+def make_decision_flow(flow, out_path, width_in=7.6, height_in=10.4):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -89,11 +89,11 @@ def make_decision_flow(flow, out_path, width_in=7.6, height_in=11.0):
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
     TOP = 0.905
-    TESTS_BOT = 0.375
-    Y_OUT = 0.135
+    TESTS_BOT = 0.330
+    Y_OUT = 0.150
     step = (TOP - TESTS_BOT) / len(tests)
     bx, bw = 0.255, 0.40
-    bh = step * 0.72
+    bh = step * 0.70
 
     # --- layer 1, which every cluster has already been through
     ax.add_patch(FancyBboxPatch((bx - 0.02, TOP + 0.034), bw + 0.04, 0.052,
@@ -121,18 +121,20 @@ def make_decision_flow(flow, out_path, width_in=7.6, height_in=11.0):
                                     boxstyle='round,pad=0.006,rounding_size=0.012',
                                     facecolor=C_BOX, edgecolor=C_BOX_EDGE,
                                     lw=1.0, zorder=3))
-        ax.text(bx + bw / 2, yc + bh / 2 - 0.009, s['label'].upper(),
-                ha='center', va='top', fontsize=7.6, weight='bold',
-                color=C_BOX_EDGE, zorder=4)
-        ax.text(bx + bw / 2, yc + 0.004, SHORT_Q[s['stage']], ha='center',
-                va='center', fontsize=8.6, color=INK, linespacing=1.35,
+        cxm = bx + bw / 2
+        # NO SUB-RULE IDS. '3a', '5d' and the rest are internal bookkeeping
+        # the figure never defines, so printing them asked the reader to hold
+        # a vocabulary nothing explains. The stage's own FAIL count is on the
+        # right, so no number is lost with them.
+        ax.text(cxm, yc + 0.32 * bh, s['label'].upper(), ha='center',
+                va='center', fontsize=8.0, weight='bold', color=C_BOX_EDGE,
                 zorder=4)
-        ax.text(bx + bw / 2, yc - bh / 2 + 0.023, METRIC[s['stage']],
-                ha='center', va='bottom', fontsize=6.6, color=C_BOX_EDGE,
-                alpha=.85, linespacing=1.25, zorder=4)
-        ax.text(bx + bw / 2, yc - bh / 2 + 0.006,
-                '   '.join(f'rule {k}  {v:,}' for k, v in s['subs'].items()),
-                ha='center', va='bottom', fontsize=6.4, color=GREY, zorder=4)
+        ax.text(cxm, yc + 0.02 * bh, SHORT_Q[s['stage']], ha='center',
+                va='center', fontsize=8.8, color=INK, linespacing=1.35,
+                zorder=4)
+        ax.text(cxm, yc - 0.31 * bh, METRIC[s['stage']], ha='center',
+                va='center', fontsize=6.9, color=C_BOX_EDGE, alpha=.85,
+                zorder=4)
 
         if s['fail']:
             ax.annotate('', xy=(bx + bw + 0.072, yc), xytext=(bx + bw, yc),
