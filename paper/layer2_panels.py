@@ -614,19 +614,16 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         centers, counts = compute_ccg(st * FS, primary['times'] * FS,
                                       window_ms=CCG_WINDOW_MS,
                                       bin_ms=CCG_BIN_MS, fs=FS)
-        # THE TESTED BINS ARE DRAWN IN RED, at 1 ms. Coarsening to 2 ms made
-        # the silhouette calmer but threw the detail away, and a shaded band
-        # behind grey bars still left the reader measuring heights by eye.
-        # Colouring the +-1 ms bins themselves puts the comparison in the
-        # data: on a refractory dip the red bars are the shortest in the
-        # panel, on a re-detection the red bar is the tallest thing in the row.
-        centers, counts = _rebin(centers, counts, 2)      # 0.5 -> 1 ms bins
-        _w = (centers[1] - centers[0]) * 0.94
-        _hot = np.abs(centers) <= 1.0
-        a_ccg.bar(centers[~_hot], counts[~_hot], width=_w, color=C_HIST,
-                  lw=0, alpha=.95)
-        a_ccg.bar(centers[_hot], counts[_hot], width=_w, color=C_REFRAC,
-                  lw=0, alpha=.95)
+        # 2 MS BINS, RED SHADE. Rendered side by side (ccg_binning_options),
+        # 0.5 ms is a picket fence in which an empty centre is invisible, and
+        # at 2 ms the dip row's shaded window sits at half the height of its
+        # surround while the duplicate's bar still towers over the panel. The
+        # gate's own resolution is untouched -- the modal lag printed below is
+        # measured on its 0.5 ms bins, and the shaded window is +-1 ms.
+        centers, counts = _rebin(centers, counts, 4)      # 0.5 -> 2 ms bins
+        a_ccg.bar(centers, counts, width=(centers[1] - centers[0]),
+                  color=C_HIST, lw=0, alpha=.95)
+        a_ccg.axvspan(-1, 1, color=C_REFRAC, alpha=.22, lw=0)
         a_ccg.set_ylim(0, max(1.0, float(counts.max()) * 1.22))
         # DRAW THE LEVEL THE CENTRE IS JUDGED AGAINST. The statistic compares
         # the +-1 ms window with the 5-20 ms flanks, and at three counts a bin
@@ -686,28 +683,27 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         centers, counts = compute_ccg(st * FS, st * FS,
                                       window_ms=CCG_WINDOW_MS,
                                       bin_ms=CCG_BIN_MS, fs=FS)
-        # THE TESTED BINS ARE DRAWN IN RED, at 1 ms. Coarsening to 2 ms made
-        # the silhouette calmer but threw the detail away, and a shaded band
-        # behind grey bars still left the reader measuring heights by eye.
-        # Colouring the +-1 ms bins themselves puts the comparison in the
-        # data: on a refractory dip the red bars are the shortest in the
-        # panel, on a re-detection the red bar is the tallest thing in the row.
-        centers, counts = _rebin(centers, counts, 2)      # 0.5 -> 1 ms bins
-        _w = (centers[1] - centers[0]) * 0.94
-        _hot = np.abs(centers) <= 1.0
-        a_ccg.bar(centers[~_hot], counts[~_hot], width=_w, color=C_HIST,
-                  lw=0, alpha=.95)
-        a_ccg.bar(centers[_hot], counts[_hot], width=_w, color=C_REFRAC,
-                  lw=0, alpha=.95)
+        # 2 MS BINS, RED SHADE. Rendered side by side (ccg_binning_options),
+        # 0.5 ms is a picket fence in which an empty centre is invisible, and
+        # at 2 ms the dip row's shaded window sits at half the height of its
+        # surround while the duplicate's bar still towers over the panel. The
+        # gate's own resolution is untouched -- the modal lag printed below is
+        # measured on its 0.5 ms bins, and the shaded window is +-1 ms.
+        centers, counts = _rebin(centers, counts, 4)      # 0.5 -> 2 ms bins
+        a_ccg.bar(centers, counts, width=(centers[1] - centers[0]),
+                  color=C_HIST, lw=0, alpha=.95)
+        a_ccg.axvspan(-1, 1, color=C_REFRAC, alpha=.22, lw=0)
         a_ccg.set_ylim(0, max(1.0, float(counts.max()) * 1.22))
         tag(a_ccg, 'autocorrelogram', C_QUIET, .97, size=5)
     frame(a_ccg, 'ccg')
 
+    # NO BLANKING. set_xticklabels([]) installs a fixed empty formatter, and
+    # the MaxNLocator set below then regenerated the ticks but not their text
+    # -- which is why the amplitude panels had an axis label and no numbers on
+    # every row but the last. Every panel carries its own scale, so every
+    # panel keeps its own labels.
     for ax in axes:
         ax.tick_params(labelsize=5, length=2, pad=1)
-        if not show_xlabels:
-            ax.set_xticklabels([])
-        ax.set_yticks([])
     AXLAB = ((a_wf, 'time (ms)', 'norm. amplitude'),
              (a_isi, 'ISI (ms)', 'count'),
              (a_win, 'PC 1', 'PC 2'),
