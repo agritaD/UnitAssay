@@ -47,6 +47,9 @@ import math
 from pathlib import Path
 
 import numpy as np
+from matplotlib import patheffects as _pe
+
+from matplotlib.ticker import MaxNLocator
 
 from unitassay.curate.bimodality import overmerge_verdict
 from unitassay.curate.ccg import CCG_BIN_MS, CCG_WINDOW_MS, compute_ccg
@@ -506,7 +509,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                       color=pcol, alpha=.55, linewidths=0)
         mx, my = _running(primary['times'] / 60, primary['amps'])
         if mx is not None:
-            a_amp.plot(mx, my, color=pcol, lw=1.3)
+            a_amp.plot(mx, my, color=pcol, lw=2.0, path_effects=[_pe.Stroke(linewidth=2.9, foreground='white'), _pe.Normal()])
     msk = data.get('split_mask')
     if (st.size and lab is not None and msk is not None
             and int(np.sum(msk)) == len(lab)):
@@ -521,13 +524,15 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                               linewidths=0)
                 gx, gy = _running(ts[m], as_[m])
                 if gx is not None:
-                    a_amp.plot(gx, gy, color=col, lw=1.5)
+                    # a bare line disappears into its own point cloud; the
+                    # white halo is what makes each trace readable
+                    a_amp.plot(gx, gy, color=col, lw=2.0, path_effects=[_pe.Stroke(linewidth=2.9, foreground='white'), _pe.Normal()])
     elif st.size:
         a_amp.scatter(st / 60, data['amps'], s=2.2, color=C_UNIT, alpha=.65,
                       linewidths=0)
         mx, my = _running(st / 60, data['amps'])
         if mx is not None:
-            a_amp.plot(mx, my, color=C_UNIT, lw=1.6)
+            a_amp.plot(mx, my, color=C_UNIT, lw=2.0, path_effects=[_pe.Stroke(linewidth=2.9, foreground='white'), _pe.Normal()])
     af = rec_row.get('absent_frame_frac')
     if _isfinite(af) and af > 0:
         tag(a_amp, f'absent {af:.0%}',
@@ -606,3 +611,15 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         if not show_xlabels:
             ax.set_xticklabels([])
         ax.set_yticks([])
+    # EVERY ROW GETS ITS OWN AMPLITUDE AXES. Recording length and amplitude
+    # scale differ from row to row -- 6 to 37 minutes across these six -- so
+    # tick labels only on the bottom row would be read as applying to all of
+    # them. This panel carries its own, always.
+    a_amp.tick_params(labelsize=5, length=2, pad=1, labelleft=True,
+                      labelbottom=True)
+    a_amp.yaxis.set_major_locator(MaxNLocator(3))
+    a_amp.xaxis.set_major_locator(MaxNLocator(4))
+    for lab_ in a_amp.get_xticklabels():
+        lab_.set_visible(True)
+    a_amp.set_xlabel('time (min)', fontsize=5.5, labelpad=1)
+    a_amp.set_ylabel('amplitude (a.u.)', fontsize=5.5, labelpad=1)
