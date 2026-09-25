@@ -351,3 +351,86 @@ def oversplit_by_ccg_shape(corpus_dir, candidates, max_eval=400, per_group=8):
     out['oversplit_dip'].sort(key=lambda r: (r['dip_ratio'], -r['flank_counts']))
     out['oversplit_nodip'].sort(key=lambda r: -r['dip_ratio'])
     return {k: v[:per_group] for k, v in out.items()}
+
+
+# ---------------------------------------------------------------------------
+# RANKING FOR READABILITY, measured in the space the panel actually draws.
+#
+# The first passes ranked on record fields (how many columns were quiet, how
+# close the spike count sat to the median) and produced candidates that were
+# statistically typical and visually mute -- Agrita rejected the offered
+# examples in three of five rows. What a teaching row needs is that the
+# evidence its rule read be VISIBLE, and that is a property of the plotted
+# geometry, not of the record. So each kind is scored on the quantity a reader
+# would look at:
+#
+#   clean       the unit sits clearly APART from its neighbour, is present
+#               throughout, and has a strong peak-to-reference ratio
+#   over-merge  the two imposed sub-populations separate in the BETWEEN-cluster
+#               space as well, so the panel shows WHICH half sits on the
+#               neighbour rather than one undifferentiated blob
+#   intermittent  one long contiguous silence, not sparse firing everywhere
+
+def isotropy(points):
+    """How round a cloud is in the plotted 2-D: 0 = a line, 1 = circular.
+
+    Some clusters collapse onto a single PC value and render as a vertical or
+    horizontal line. They are not useful exemplars, and they SCORE WELL on
+    centroid separation precisely because they have almost no spread in one
+    direction -- the first clean ranking returned three of them in a row.
+    """
+    if points is None or len(points) < 20:
+        return 0.0
+    p = np.asarray(points)[:, :2]
+    sd = p.std(0)
+    return float(min(sd) / max(max(sd), 1e-12))
+
+
+def _centroid_sep(a, b, min_isotropy=0.18):
+    """Separation of two point sets in the plotted 2-D, in pooled SDs.
+
+    Returns 0 when either cloud is degenerate, so a line-shaped cluster cannot
+    win on separation it only has because it has no width.
+    """
+    if a is None or b is None or len(a) < 20 or len(b) < 20:
+        return 0.0
+    if isotropy(a) < min_isotropy or isotropy(b) < min_isotropy:
+        return 0.0
+    a2, b2 = np.asarray(a)[:, :2], np.asarray(b)[:, :2]
+    d = np.linalg.norm(a2.mean(0) - b2.mean(0))
+    spread = np.sqrt(0.5 * (a2.std(0).mean() ** 2 + b2.std(0).mean() ** 2))
+    return float(d / max(spread, 1e-9))
+
+
+def presence_contrast(times, duration_s=None, bin_s=30.0):
+    """(longest silent fraction, active-vs-silent rate contrast).
+
+    Intermittent presence should read as a unit that is THERE and then NOT,
+    so the score rewards one long contiguous silence over a cluster that is
+    merely sparse.
+    """
+    t = np.asarray(times, float)
+    if t.size < 50:
+        return 0.0, 0.0
+    T = float(duration_s or t.max())
+    if T <= 0:
+        return 0.0, 0.0
+    edges = np.arange(0, T + bin_s, bin_s)
+    counts, _ = np.histogram(t, bins=edges)
+    if counts.size < 4:
+        return 0.0, 0.0
+    nz = counts[counts > 0]
+    # `counts[counts > 0] or [1]` raises on an array -- numpy has no truth
+    # value for one. Every candidate was silently skipped by the caller's
+    # except, so the whole row scored zero and looked like there were no good
+    # examples rather than like a broken scorer.
+    typical = float(np.median(nz)) if nz.size else 1.0
+    active = counts > max(1.0, 0.1 * typical)
+    best = run = 0
+    for a in active:
+        run = 0 if a else run + 1
+        best = max(best, run)
+    silent_frac = best / counts.size
+    hi = counts[active].mean() if active.any() else 0.0
+    lo = counts[~active].mean() if (~active).any() else 0.0
+    return float(silent_frac), float(hi / max(lo, 0.5))

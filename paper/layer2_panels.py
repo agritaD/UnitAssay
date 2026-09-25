@@ -59,7 +59,15 @@ FS = 30000.0
 
 C_UNIT = '#3953A4'
 C_SPLIT = '#F58430'
-C_OTHER = ('#BF1E2D', '#E386B7')
+# Red for a cluster INSIDE layer 1's pool -- same peak channel, one of the
+# clusters its L-ratio was measured against. Pink for one OUTSIDE it, which
+# only layer 2 ever reaches. Agrita: a duplicate's partner is on a different
+# channel by definition, so it should not be drawn in the colour that means
+# "layer 1 compared these". Both hues validated all-pairs for CVD against the
+# unit blue and the split orange (worst pair dE 15.6 deutan).
+C_SAME_POOL = '#BF1E2D'
+C_OFF_POOL = '#E386B7'
+C_OTHER = (C_SAME_POOL, C_OFF_POOL)
 C_REF = '#8A8F98'
 C_FIRE = '#D55E00'
 C_QUIET = '#5B6470'
@@ -168,10 +176,28 @@ def align_primary(data):
                                         data['clu_id'], prt['clu_id'], sp.clu)
     if fa is not None and len(fa) and fb is not None and len(fb):
         data['fs_aligned'] = (fa, fb, prt['clu_id'], n_shared)
+        # THE SAME SPIKES, IN THE SAME ORDER, so the imposed-split labels
+        # computed on the full feature matrix can colour the aligned points.
+        # aligned_features() drops non-finite rows on the aligned columns and
+        # load_row() drops them on the full ones; the two masks are not the
+        # same, so the labels cannot simply be indexed onto fa. Recomputing
+        # the split on the aligned subset would be a DIFFERENT test from the
+        # one the record reports, so instead the unit's aligned points are
+        # rebuilt from the rows that survived the FULL mask.
+        ind_a, ind_b = sp.pc_feat_ind[data['clu_id']], sp.pc_feat_ind[prt['clu_id']]
+        shared = np.intersect1d(ind_a, ind_b)
+        cols_a = np.array([np.where(ind_a == ch)[0][0] for ch in shared])
+        idx_a = np.where(sp.clu == data['clu_id'])[0]
+        npc = min(N_PC, sp.pc_feat.shape[1])
+        full = sp.pc_feat[idx_a][:, :npc, :].reshape(len(idx_a), -1)
+        keep = np.all(np.isfinite(full), axis=1)
+        al = sp.pc_feat[idx_a][keep][:, :npc, :][:, :, cols_a]
+        data['fs_unit_registered'] = al.reshape(int(keep.sum()), -1)
     return data
 
 
-def add_rule_partner(data, rec_row, sp_cache_entry):
+def add_rule_partner(data, rec_row, sp_cache_entry, ks_dir=None,
+                     unit_peak_ch=None):
     """Ensure the partner the RULE used is present, flagged with why."""
     have = {o['clu_id'] for o in data['others']}
     pid, why = None, None
@@ -200,10 +226,50 @@ def add_rule_partner(data, rec_row, sp_cache_entry):
     oidx = np.where(sp.clu == pid)[0]
     if oidx.size:
         data['others'].insert(0, {
-            'clu_id': pid, 'wf': None, 'role': why, 'is_partner': True,
+            'clu_id': pid, 'wf': partner_template_on(ks_dir, pid, unit_peak_ch),
+            'role': why, 'is_partner': True,
             'times': sp.st[oidx], 'amps': sp.temp_scaling_amps[oidx],
             'feats': _flat_feats(sp, pid)})
     return data
+
+
+_TEMPL = {}
+
+
+def unit_peak_channel(ks_dir, clu_id):
+    """The channel the screen calls this cluster's peak -- max template energy."""
+    t = _templates(ks_dir)
+    if t is None or clu_id >= len(t):
+        return None
+    return int(np.argmax(np.ptp(np.asarray(t[clu_id]), axis=0)))
+
+
+def _templates(ks_dir):
+    if ks_dir not in _TEMPL:
+        try:
+            _TEMPL[ks_dir] = np.load(Path(ks_dir) / 'templates.npy', mmap_mode='r')
+        except Exception:
+            _TEMPL[ks_dir] = None
+    return _TEMPL[ks_dir]
+
+
+def partner_template_on(ks_dir, clu_id, channel):
+    """The partner's template ON THE UNIT'S PEAK CHANNEL.
+
+    A duplicate's partner usually sits on a DIFFERENT peak channel -- 39.6% of
+    them do, because re-detection is spatial -- so it is not in the screen's
+    same-channel neighbour list and has no stored waveform. Reading it off the
+    templates keeps the panel populated, and putting it on the UNIT's channel
+    is what makes the comparison mean anything: the claim is that the same
+    event was detected twice, which is a claim about one channel.
+    """
+    t = _templates(ks_dir)
+    if t is None or channel is None or clu_id >= len(t):
+        return None
+    try:
+        return np.asarray(t[clu_id])[:, channel]
+    except Exception:
+        return None
 
 
 def _running(t, y, n_bins=26):
@@ -239,12 +305,15 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
     # next purely because it happened to be second in the neighbour list --
     # the reader has no way to know that, so the colour stopped meaning
     # anything. The cluster the row is ABOUT is always C_OTHER[0].
+    # Colour says WHICH POOL the comparison cluster came from, not where it
+    # sat in a list: red inside layer 1's same-channel pool, pink outside it.
+    off_pool = rec_row.get('_partner_same_channel') is False
     ocol = {}
     if primary is not None:
-        ocol[primary['clu_id']] = C_OTHER[0]
+        ocol[primary['clu_id']] = C_OFF_POOL if off_pool else C_SAME_POOL
     for o in others:
-        ocol.setdefault(o['clu_id'], C_OTHER[1])
-    pcol = ocol.get(primary['clu_id'], C_OTHER[0]) if primary else C_OTHER[0]
+        ocol.setdefault(o['clu_id'], C_SAME_POOL)
+    pcol = ocol.get(primary['clu_id'], C_SAME_POOL) if primary else C_SAME_POOL
 
     def frame(ax, col):
         for sp_ in ax.spines.values():
@@ -368,8 +437,18 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         fa, fb, oid, n_shared = fs_pair
         a_btw.scatter(fb[:, 0], fb[:, 1], s=2.6, color=ocol.get(oid, C_OTHER[0]),
                       alpha=.80, linewidths=0)
-        a_btw.scatter(fa[:, 0], fa[:, 1], s=2.6, color=C_UNIT, alpha=.80,
-                      linewidths=0)
+        reg = data.get('fs_unit_registered')
+        if lab is not None and reg is not None and len(reg) == len(lab):
+            # An over-merge is two populations in ONE cluster, so the question
+            # this panel has to answer is WHICH of them sits on the neighbour.
+            # Drawn in one colour it cannot answer it.
+            a_btw.scatter(reg[lab == 0, 0], reg[lab == 0, 1], s=2.6,
+                          color=C_UNIT, alpha=.80, linewidths=0)
+            a_btw.scatter(reg[lab == 1, 0], reg[lab == 1, 1], s=2.6,
+                          color=C_SPLIT, alpha=.80, linewidths=0)
+        else:
+            a_btw.scatter(fa[:, 0], fa[:, 1], s=2.6, color=C_UNIT, alpha=.80,
+                          linewidths=0)
         role = next((o['role'] for o in others if o['clu_id'] == oid), '')
         tag(a_btw, f'vs clu {oid} ({role})', ocol.get(oid, C_OTHER[0]), .97)
         tag(a_btw, f'{n_shared} shared channels', C_QUIET, .845, size=5)
@@ -378,10 +457,9 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         # references same-channel clusters. For duplicates it usually cannot:
         # 39.6% of their partners are on another channel, because re-detection
         # is spatial. Saying so turns a caveat into the row's lesson.
-        sc = rec_row.get('_partner_same_channel')
-        if sc is False:
-            tag(a_btw, 'different peak channel', C_FIRE, .72, size=5)
-            tag(a_btw, 'layer 1 never compares these', C_QUIET, .60, size=4.5)
+        if rec_row.get('_partner_same_channel') is False:
+            tag(a_btw, 'different peak channel', C_OFF_POOL, .72, size=5)
+            tag(a_btw, "outside layer 1's pool", C_QUIET, .60, size=4.5)
     else:
         a_btw.text(.5, .5, 'no shared-channel neighbour', ha='center',
                    va='center', transform=a_btw.transAxes, fontsize=6,
@@ -432,15 +510,39 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         # readable too.
         if counts.size and counts.max() > 0:
             ml = float(centers[int(np.argmax(counts))])
-            a_ccg.axvline(ml, color=C_FIRE, lw=0.8, ls=':')
             flank = counts[(np.abs(centers) > 5) & (np.abs(centers) <= 20)]
             ctr = counts[np.abs(centers) <= 1.0]
             ratio = (ctr.mean() / max(flank.mean(), 1)) if flank.size and ctr.size else float('nan')
-            word = ('refractory dip' if ratio < 0.3
-                    else 'coincident excess' if ratio > 1.5 else 'flat')
-            a_ccg.text(.97, .97, f'peak {ml:+.2f} ms\n{word}',
-                       transform=a_ccg.transAxes, fontsize=5, ha='right',
-                       va='top', color=C_QUIET)
+            is_dip = ratio < 0.3 and int(flank.sum()) >= 60
+            if is_dip:
+                # A DIPPING CORRELOGRAM HAS NO MODAL LAG WORTH QUOTING. Its
+                # tallest bin is wherever noise happened to pile up -- for the
+                # 5c exemplar that is -18.25 ms -- so printing it as "peak"
+                # invites the reader to interpret a fluctuation. What the panel
+                # is showing is the EMPTY centre, so report that instead.
+                note = f'refractory dip\ndip ratio {ratio:.2f}'
+            else:
+                a_ccg.axvline(ml, color=C_FIRE, lw=0.8, ls=':')
+                # FOR A DUPLICATE, QUOTE THE CRITERION THAT WAS APPLIED. The
+                # dip ratio averages over +-1 ms, so a re-detection's needle --
+                # one 0.5 ms bin -- is diluted to about 1.3 and comes out
+                # labelled 'flat' on a panel where the spike is the most
+                # obvious thing in the row. The rule never used that statistic
+                # here: it used overlap and modal lag, so those are what the
+                # panel reports.
+                ov = None
+                for q in (rec_row.get('overlap_pairs') or []):
+                    if isinstance(q, dict) and int(q.get('other', -1)) == primary['clu_id']:
+                        ov = q
+                        break
+                if ov is not None:
+                    note = (f"overlap {float(ov.get('overlap', float('nan'))):.0%}\n"
+                            f"lag {float(ov.get('lag_ms', float('nan'))):+.2f} ms")
+                else:
+                    word = 'coincident excess' if ratio > 1.5 else 'flat'
+                    note = f'peak {ml:+.2f} ms\n{word}'
+            a_ccg.text(.97, .97, note, transform=a_ccg.transAxes, fontsize=5,
+                       ha='right', va='top', color=C_QUIET)
         tag(a_ccg, f"vs clu {primary['clu_id']} ({primary['role']})", pcol, .97)
     elif st.size > 2:
         centers, counts = compute_ccg(st * FS, st * FS,
