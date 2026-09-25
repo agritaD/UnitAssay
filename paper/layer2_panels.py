@@ -653,7 +653,15 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                 # is showing is the EMPTY centre, so report that instead.
                 note = f'refractory dip\ndip ratio {ratio:.2f}'
             else:
-                a_ccg.axvline(ml, color=C_FRAME, lw=0.8, ls=':')
+                # THE LINE ONLY WHERE THERE IS A PEAK TO MARK. On a flat
+                # correlogram the tallest bar is wherever noise piled up, so
+                # the marker pointed at -4, -16 and +18 ms on three rows and
+                # the label called each of them a 'peak'. It is drawn, and the
+                # lag quoted, only when the centre actually stands above its
+                # surround -- the same reasoning that already suppressed it on
+                # the dipping rows.
+                if ratio > 1.5:
+                    a_ccg.axvline(ml, color=C_FRAME, lw=0.8, ls=':')
                 # FOR A DUPLICATE, QUOTE THE CRITERION THAT WAS APPLIED. The
                 # dip ratio averages over +-1 ms, so a re-detection's needle --
                 # one 0.5 ms bin -- is diluted to about 1.3 and comes out
@@ -669,9 +677,10 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                 if ov is not None:
                     note = (f"overlap {float(ov.get('overlap', float('nan'))):.0%}\n"
                             f"lag {float(ov.get('lag_ms', float('nan'))):+.2f} ms")
+                elif ratio > 1.5:
+                    note = f'coincident excess\npeak {ml:+.2f} ms'
                 else:
-                    word = 'coincident excess' if ratio > 1.5 else 'flat'
-                    note = f'peak {ml:+.2f} ms\n{word}'
+                    note = 'flat'
             a_ccg.text(.97, .845, note, transform=a_ccg.transAxes,
                        fontsize=5, ha='right', va='top', color=C_QUIET)
         _short = {'same channel': 'same ch', 'counted under': 'counted under',
