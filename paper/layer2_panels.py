@@ -92,6 +92,14 @@ C_QUIET = '#5B6470'
 C_HIST = '#9098A3'
 C_REFRAC = '#BF1E2D'        # the refractory window, shaded red
 
+# Text sizes and ink. Agrita: bigger, and black. Everything that names an
+# axis or a number is ink; only labels that identify a CLUSTER keep that
+# cluster's colour, because there the colour is the identification.
+INK = '#111418'
+SZ_TICK = 6.0
+SZ_LABEL = 7.0
+SZ_TAG = 6.5
+
 
 def _isfinite(x):
     return (isinstance(x, (int, float)) and not isinstance(x, bool)
@@ -361,7 +369,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
             sp_.set_linewidth(1.1 if hot else 0.6)
             sp_.set_color(C_FRAME if hot else '#C7CCD4')
 
-    def tag(ax, txt, col, y, size=5.5):
+    def tag(ax, txt, col, y, size=SZ_TAG):
         ax.text(.03, y, txt, transform=ax.transAxes, fontsize=size,
                 va='top', color=col)
 
@@ -507,8 +515,8 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
             # large_tested') runs the width of the panel and lands on the
             # tick labels
             a_prj.text(.97, .88, str(rec_row['dip_basis']).split('+')[0],
-                       transform=a_prj.transAxes, fontsize=4.5,
-                       color=C_QUIET, ha='right', va='top')
+                       transform=a_prj.transAxes, fontsize=SZ_TAG - 1,
+                       color=INK, ha='right', va='top')
     else:
         a_prj.text(.5, .5, 'dip not evaluated', ha='center', va='center',
                    transform=a_prj.transAxes, fontsize=6, color=C_QUIET)
@@ -537,7 +545,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                           linewidths=0)
         role = next((o['role'] for o in others if o['clu_id'] == oid), '')
         tag(a_btw, f'vs clu {oid} ({role})', ocol.get(oid, C_OTHER[0]), .97)
-        tag(a_btw, f'{n_shared} shared channels', C_QUIET, .845, size=5)
+        tag(a_btw, f'{n_shared} shared channels', INK, .845)
         # Whether the partner sits on the unit's OWN peak channel decides
         # whether layer 1 could see this comparison at all -- it only ever
         # references same-channel clusters. For duplicates it usually cannot:
@@ -545,7 +553,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         # is spatial. Saying so turns a caveat into the row's lesson.
         if rec_row.get('_partner_same_channel') is False:
             tag(a_btw, 'different peak channel', C_OFF_POOL, .72, size=5)
-            tag(a_btw, "outside layer 1's pool", C_QUIET, .60, size=4.5)
+            tag(a_btw, "outside layer 1's pool", INK, .60, size=SZ_TAG - 1)
     else:
         a_btw.text(.5, .5, 'no shared-channel neighbour', ha='center',
                    va='center', transform=a_btw.transAxes, fontsize=6,
@@ -596,8 +604,8 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
     _tmax = (max(_ends) / 60.0) if _ends else 0.0
     if _tmax > 0:
         a_amp.text(.97, .97, f'{_tmax:.1f} min recording',
-                   transform=a_amp.transAxes, fontsize=5, ha='right',
-                   va='top', color=C_QUIET)
+                   transform=a_amp.transAxes, fontsize=SZ_TAG, ha='right',
+                   va='top', color=INK)
     af = rec_row.get('absent_frame_frac')
     if _isfinite(af) and af > 0:
         tag(a_amp, f'absent {af:.0%}',
@@ -682,7 +690,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                 else:
                     note = 'flat'
             a_ccg.text(.97, .845, note, transform=a_ccg.transAxes,
-                       fontsize=5, ha='right', va='top', color=C_QUIET)
+                       fontsize=SZ_TAG, ha='right', va='top', color=INK)
         _short = {'same channel': 'same ch', 'counted under': 'counted under',
                   'overlapping': 'overlap', 'accuser': 'accuser'}
         tag(a_ccg, f"vs clu {primary['clu_id']}  "
@@ -713,14 +721,20 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
     # panel keeps its own labels.
     for ax in axes:
         ax.tick_params(labelsize=5, length=2, pad=1)
-    # NUMBERS, NOT WORDS. The column headings already say what each panel is,
-    # so a per-panel axis label repeats them six times down the page. What
-    # cannot be dropped is the numeric scale: every row has its own limits --
-    # recordings from 4.3 to 36.5 minutes, amplitudes on different scales --
-    # so the ticks stay and the words go.
-    for ax in (a_wf, a_isi, a_win, a_prj, a_btw, a_ccg):
-        ax.tick_params(labelsize=4.5, length=2, pad=1, labelleft=True,
-                       labelbottom=True)
+    # Labels on, in ink, at a size that survives print. Every row also keeps
+    # its own numbers: the limits differ on every column, recordings running
+    # 4.3 to 36.5 minutes and amplitudes on unrelated scales.
+    AXLAB = ((a_wf, 'time (ms)', 'norm. amp.'),
+             (a_isi, 'ISI (ms)', 'count'),
+             (a_win, 'PC 1', 'PC 2'),
+             (a_prj, 'projection', 'count'),
+             (a_btw, 'PC 1', 'PC 2'),
+             (a_ccg, 'lag (ms)', 'coincidences'))
+    for ax, xl, yl in AXLAB:
+        ax.set_xlabel(xl, fontsize=SZ_LABEL, labelpad=1.5, color=INK)
+        ax.set_ylabel(yl, fontsize=SZ_LABEL, labelpad=1.5, color=INK)
+        ax.tick_params(labelsize=SZ_TICK, length=2.4, pad=1.5,
+                       labelleft=True, labelbottom=True, colors=INK)
         ax.yaxis.set_major_locator(MaxNLocator(3))
         if ax is not a_isi:                       # log axis picks its own
             ax.xaxis.set_major_locator(MaxNLocator(4))
@@ -729,8 +743,10 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
     # scale differ from row to row -- 6 to 37 minutes across these six -- so
     # tick labels only on the bottom row would be read as applying to all of
     # them. This panel carries its own, always.
-    a_amp.tick_params(labelsize=5, length=2, pad=1, labelleft=True,
-                      labelbottom=True)
+    a_amp.tick_params(labelsize=SZ_TICK, length=2.4, pad=1.5, labelleft=True,
+                      labelbottom=True, colors=INK)
+    a_amp.set_xlabel('time (min)', fontsize=SZ_LABEL, labelpad=1.5, color=INK)
+    a_amp.set_ylabel('amplitude', fontsize=SZ_LABEL, labelpad=1.5, color=INK)
     a_amp.yaxis.set_major_locator(MaxNLocator(3))
     a_amp.xaxis.set_major_locator(MaxNLocator(4))
     for lab_ in a_amp.get_xticklabels():
