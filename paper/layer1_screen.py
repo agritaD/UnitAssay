@@ -222,14 +222,21 @@ def _save(fig, out):
 
 
 def make_threshold_panel(sweep, out_svg):
-    """Panel D: where each shipped threshold sits in the data it cuts.
+    """Supplementary: where each shipped threshold sits in the data it cuts.
 
-    A SWEEP OF THE PASS RATE WAS THE WRONG PICTURE. It shows yield, and yield
-    is maximised by a threshold that passes everything -- so the curve cannot
-    argue for an operating point. The distribution can: the density AT the
-    threshold IS the slope of that curve, so this carries the same sensitivity
-    information and also shows whether the cut lands in a sparse region (robust)
-    or on a peak (where a small change moves many clusters).
+    A sweep of the pass rate shows YIELD, which is maximised by a threshold
+    that passes everything, so it cannot argue for an operating point. The
+    distribution can: the density AT the cut is the slope of that curve, so it
+    carries the same sensitivity information and also shows whether the cut
+    lands in a sparse region or on a peak.
+
+    THE TWO CRITERIA POINT OPPOSITE WAYS -- a cluster passes the L-ratio by
+    being BELOW its threshold and passes stability by being ABOVE its own --
+    so the passing side is shaded rather than left to the reader.
+
+    LOG COUNTS on the stability half. It is strongly bimodal, ~21,500 clusters
+    at 0 and ~18,500 at 1; on a linear axis the two piles are all you see and
+    everything between them reads as empty when it is not.
     """
     import matplotlib
     matplotlib.use('Agg')
@@ -238,46 +245,52 @@ def make_threshold_panel(sweep, out_svg):
     from . import style
     style.apply()
     C, SZ = style.C, style.SZ
-    fig, (a, b) = plt.subplots(1, 2, figsize=(style.W_IN * 0.54, 1.75),
-                               gridspec_kw=dict(wspace=0.40, left=0.095,
-                                                right=0.985, top=0.76,
-                                                bottom=0.28))
+    PASS_WASH = '#E4F1ED'
+    fig, (a, b) = plt.subplots(1, 2, figsize=(style.W_IN * 0.56, 1.85),
+                               gridspec_kw=dict(wspace=0.38, left=0.10,
+                                                right=0.985, top=0.74,
+                                                bottom=0.26))
     thr_l = sweep['shipped']['l_ratio']
     thr_t = sweep['shipped']['t_ratio']
 
     v = _np.asarray(sweep['lratio'].get('values') or [])
     v = v[_np.isfinite(v) & (v > 0)]
-    if v.size:
-        bins = _np.logspace(_np.log10(max(v.min(), 1e-4)),
-                            _np.log10(max(v.max(), 1e-3)), 44)
-        a.hist(v, bins=bins, color=C['teal'], linewidth=0, rwidth=0.9)
-        a.set_xscale('log')
-    a.axvline(thr_l, color=C['warm'], lw=1.0, ls=(0, (3, 2)))
-    a.text(thr_l, a.get_ylim()[1] * 1.02, f'{thr_l}', color=C['warm'],
-           fontsize=SZ['tick'], fontweight='bold', va='bottom', ha='center')
+    lo, hi = max(v.min(), 1e-4), max(v.max(), 1e-3)
+    a.axvspan(lo, thr_l, color=PASS_WASH, zorder=0)          # pass = BELOW
+    a.hist(v, bins=_np.logspace(_np.log10(lo), _np.log10(hi), 44),
+           color=C['teal'], linewidth=0, rwidth=0.9, zorder=2)
+    a.set_xscale('log'); a.set_xlim(lo, hi)
+    a.axvline(thr_l, color=C['warm'], lw=1.0, ls=(0, (3, 2)), zorder=3)
     a.set_xlabel("cluster's L-ratio (median over frames)")
     a.set_ylabel('clusters')
-    a.set_title('(i) the separation statistic', loc='left', fontsize=SZ['tick'])
-    a.text(0.98, 0.96, f'n = {v.size:,}', transform=a.transAxes, ha='right',
-           va='top', fontsize=SZ['tick'], color=C['neutral'])
+    a.set_title('(i) separation', loc='left', fontsize=SZ['tick'])
 
     f = _np.asarray(sweep.get('stability_values') or [])
+    b.axvspan(thr_t, 1.0, color=PASS_WASH, zorder=0)          # pass = ABOVE
     b.hist(f, bins=_np.linspace(0, 1, 41), color=C['teal'], linewidth=0,
-           rwidth=0.9)
-    b.axvline(thr_t, color=C['warm'], lw=1.0, ls=(0, (3, 2)))
-    b.text(thr_t, b.get_ylim()[1] * 1.02, f'{thr_t}', color=C['warm'],
-           fontsize=SZ['tick'], fontweight='bold', va='bottom', ha='center')
+           rwidth=0.9, zorder=2)
+    b.set_yscale('log'); b.set_xlim(0, 1)
+    b.axvline(thr_t, color=C['warm'], lw=1.0, ls=(0, (3, 2)), zorder=3)
     b.set_xlabel('fraction of frames the cluster is clean')
-    b.set_ylabel('clusters')
-    b.set_title('(ii) the stability statistic', loc='left', fontsize=SZ['tick'])
-    b.text(0.98, 0.96, f'n = {f.size:,}', transform=b.transAxes, ha='right',
-           va='top', fontsize=SZ['tick'], color=C['neutral'])
-    for ax_, thr, data in ((a, thr_l, v), (b, thr_t, f)):
-        if data.size:
-            frac_pass = (data < thr).mean() if ax_ is a else (data >= thr).mean()
-            ax_.text(0.98, 0.82, f'{100*frac_pass:.0f}% pass',
-                     transform=ax_.transAxes, ha='right', va='top',
-                     fontsize=SZ['tick'], color=C['warm'], fontweight='bold')
+    b.set_ylabel('clusters (log)')
+    b.set_title('(ii) stability', loc='left', fontsize=SZ['tick'])
+
+    for ax_, thr, data, passes, side in ((a, thr_l, v, (v < thr_l), 'below'),
+                                         (b, thr_t, f, (f >= thr_t), 'above')):
+        ax_.text(thr, ax_.get_ylim()[1], f'  {thr}', color=C['warm'],
+                 fontsize=SZ['tick'], fontweight='bold', va='bottom',
+                 ha='left' if side == 'above' else 'right')
+        # inside the shaded band, so it cannot collide with the panel title
+        below = side == 'below'
+        ax_.text(0.05 if below else 0.96, 0.93,
+                 f'{100*passes.mean():.0f}% pass\n({side} the line)',
+                 transform=ax_.transAxes, ha='left' if below else 'right',
+                 va='top', fontsize=SZ['tick'], color=C['teal'],
+                 fontweight='bold', linespacing=1.35)
+        # n goes in the title line: every position inside these axes is
+        # behind a bar somewhere
+        ax_.set_title(ax_.get_title(loc='left') + f'   n = {data.size:,}', loc='left',
+                      fontsize=SZ['tick'])
     _save(fig, out_svg)
     return out_svg
 
