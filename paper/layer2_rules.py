@@ -500,3 +500,46 @@ def sieve_flow(corpus_dir):
     assert remaining == 0, f'{remaining:,} clusters unaccounted for'
     return dict(total=total, n_sessions=n_sessions, stations=stations,
                 n_pass=sum(pas.values()), n_fail=sum(fail.values()))
+
+
+def decision_flow_counts(corpus_dir):
+    """Per-STAGE counts for panel A, with each stage's own question.
+
+    Organised by stage rather than by the thirteen sub-rules: a stage is a
+    SCOPE -- what the test could see -- and that is what a reader following a
+    cluster down the flow is actually deciding. The sub-rules are listed
+    inside each box, so nothing is hidden, but they do not each get a
+    decision diamond.
+    """
+    from unitassay.curate.decision_flow import STAGE, STAGE_QUESTION
+    corpus_dir = Path(corpus_dir)
+    fail, pas = {}, {}
+    subs = {}
+    n_sessions = 0
+    for path in sorted(corpus_dir.glob('*/curated.json')):
+        n_sessions += 1
+        for row in json.load(open(path))['rows']:
+            stg = STAGE.get(str(row.get('rule')))
+            if stg is None:
+                raise KeyError(f"rule {row.get('rule')!r} has no stage")
+            rid = str(row.get('rule_id') or rule_id(row.get('rule')))
+            d = pas if row.get('decision') == 'PASS' else fail
+            d[stg] = d.get(stg, 0) + 1
+            subs.setdefault(stg, {})
+            subs[stg][rid] = subs[stg].get(rid, 0) + 1
+
+    order = ['1-identity', '2-refractory', '3-composition', '4-contamination',
+             '5-neighbour', '6-unresolved', '7-clean', '8-fall-through']
+    total = sum(fail.values()) + sum(pas.values())
+    out, remaining = [], total
+    for stg in order:
+        f, p = fail.get(stg, 0), pas.get(stg, 0)
+        out.append(dict(stage=stg, label=stg.split('-', 1)[1],
+                        question=STAGE_QUESTION[stg], fail=f, pas=p,
+                        entering=remaining, remaining=remaining - f - p,
+                        subs=dict(sorted(subs.get(stg, {}).items())),
+                        fires=bool(f or p)))
+        remaining -= f + p
+    assert remaining == 0, f'{remaining:,} clusters unaccounted for'
+    return dict(total=total, n_sessions=n_sessions, stages=out,
+                n_pass=sum(pas.values()), n_fail=sum(fail.values()))
