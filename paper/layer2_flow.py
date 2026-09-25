@@ -114,6 +114,19 @@ def make_decision_flow(flow, out_path, width_in=7.4, height_in=13.2):
                     va='bottom', fontsize=8.6, color=C_PASS, weight='semibold')
             ax.text(bx - 0.086, yc - 0.006, f"{100 * s['pas'] / total:.1f}%",
                     ha='right', va='top', fontsize=6.9, color=C_PASS)
+            # It used to stop here, which left the only mid-flow PASS hanging
+            # in the margin while the total below claimed to include it. One
+            # line down the left-hand side, and the 3,978 visibly joins the
+            # 24,539.
+            px = bx - 0.215
+            ax.plot([bx - 0.072, px], [yc, yc], color=C_PASS, lw=1.0,
+                    alpha=.55, zorder=1)
+            ax.plot([px, px], [yc, Y_TOTAL + 0.052], color=C_PASS, lw=1.0,
+                    alpha=.55, zorder=1)
+            ax.annotate('', xy=(bx + bw / 2 - 0.185 - 0.055, Y_TOTAL + 0.052),
+                        xytext=(px, Y_TOTAL + 0.052),
+                        arrowprops=dict(arrowstyle='-|>', color=C_PASS,
+                                        lw=1.1, alpha=.7))
 
         nxt = (yc - step) + bh / 2 if i < len(tests) - 1 else Y_TERM + 0.085
         ax.annotate('', xy=(bx + bw / 2, nxt), xytext=(bx + bw / 2, yc - bh / 2),
@@ -145,8 +158,14 @@ def make_decision_flow(flow, out_path, width_in=7.4, height_in=13.2):
         ax.text(cx, ty - 0.034, SHORT_Q[s['stage']].replace('\n', ' '),
                 ha='center', va='center', fontsize=6.6, color=GREY, zorder=4)
 
-    # --- what the whole flow produced
+    # --- what the whole flow produced. ONE ARROW PER BOX, not a rail
+    #     collecting every exit: rails drawn from all five FAIL exits crossed
+    #     the labels and buried the flow they were meant to clarify.
     fy = Y_TOTAL
+    for (s_, col, side) in ((clean, C_PASS, -1), (fall, C_FAIL, +1)):
+        cx = bx + bw / 2 + side * 0.185
+        ax.annotate('', xy=(cx, fy + 0.046), xytext=(cx, Y_TERM - 0.058),
+                    arrowprops=dict(arrowstyle='-|>', color=col, lw=1.2))
     ax.plot([0.10, 0.90], [fy + 0.048, fy + 0.048], color='#D8DCE6', lw=0.8)
     ax.text(bx + bw / 2 - 0.185, fy, f"PASS  {flow['n_pass']:,}", ha='center',
             va='center', fontsize=11, weight='bold', color=C_PASS)
