@@ -6,47 +6,74 @@ how the earlier rule figures ended up captioned with one test's answer and
 drawn with another's, twice. Geometry (the LDA axis, the group labels) is
 recomputed because it is not stored; verdicts never are.
 
-Columns, in sieve order, so reading a row left to right is reading panel A
-top to bottom:
+COLOUR ENCODES SCOPE, because scope is the thing the rules are organised by:
+decision_flow's own note says a stage is a scope, not an outcome -- a
+within-cluster test is blind to other clusters, and only a between-cluster
+test can say "other cluster". So the grammar is:
 
-    waveform | ISI | 1-D projection | amplitude | feature space | CCG
-      ctx      r2        r3a            r3b          r4a/5a      r1/5b/5c
+    blue    this cluster, in every panel
+    orange  the part the dip peeled off it       WITHIN-cluster columns only
+    red     another cluster on the same channel  BETWEEN-cluster columns
+    pink    a second such cluster
+    grey    the reference channel layer 1 measured against
+
+Columns, left to right -- the two within-cluster columns adjacent, then the
+two between-cluster ones, so the grammar reads in blocks:
+
+    waveform | ISI | KS4 feature space | 1-D projection | amplitude | CCG
+      all       r2         r4a/5a            r3a            r3b      r1/5b/5c
+
+Palette validated all-pairs for CVD (worst pair dE 15.6 deutan). The orange
+and pink sit under 3:1 against white, so every panel that uses them carries a
+visible label -- which the validator requires as relief, and which the panels
+need anyway to say WHICH cluster is which.
 """
-import json
 import math
 from pathlib import Path
 
 import numpy as np
 
-from unitassay.curate.constants import (ABSENT_FRAME_FRAC_THRESH,
-                                        DIP_PVAL_THRESH, ccg_z_threshold)
-from unitassay.curate.ccg import CCG_BIN_MS, CCG_WINDOW_MS, compute_ccg
 from unitassay.curate.bimodality import overmerge_verdict
-from unitassay.curate.sortdata import sortdata_path
+from unitassay.curate.ccg import CCG_BIN_MS, CCG_WINDOW_MS, compute_ccg
+from unitassay.curate.constants import ABSENT_FRAME_FRAC_THRESH, DIP_PVAL_THRESH
+from unitassay.curate.sortdata import aligned_features
 from unitassay.screen.io.ks_loader import load_ks_dir
 
 N_PC = 3
 FS = 30000.0
-# One colour per role, held across every row so a colour means the same thing
-# in all of them.
-C_UNIT = '#1F4E9C'
-C_PARTNER = '#C2185B'
+
+C_UNIT = '#3953A4'
+C_SPLIT = '#F58430'
+C_OTHER = ('#BF1E2D', '#E386B7')
 C_REF = '#8A8F98'
 C_FIRE = '#D55E00'
 C_QUIET = '#5B6470'
-C_G2 = '#E8A33D'
+C_HIST = '#6E7681'
 
 
-def _iso_dir(session_dir):
-    return Path(session_dir) / 'isolation'
+def _isfinite(x):
+    return (isinstance(x, (int, float)) and not isinstance(x, bool)
+            and math.isfinite(x))
 
 
-def load_cluster(session_dir, ks_dir, clu_id, ks_cache=None):
-    """Everything the six columns need for one cluster.
+def _flat_feats(sp, clu_id):
+    idx = np.where(sp.clu == clu_id)[0]
+    if sp.pc_feat is None or not idx.size:
+        return None
+    npc = min(N_PC, sp.pc_feat.shape[1])
+    flat = sp.pc_feat[idx, :npc, :].reshape(idx.size, -1)
+    flat = flat[np.all(np.isfinite(flat), axis=1)]
+    return flat if flat.size else None
 
-    `session_dir` holds curated.json and the screen's isolation/ output; the
-    SortData files are NOT beside the Kilosort data, which is where
-    sortdata_path() points by default.
+
+def load_row(session_dir, ks_dir, clu_id, ks_cache=None, max_others=2):
+    """Everything the six columns need, including the same-channel neighbours.
+
+    The neighbours come from the screen's own SortData -- they ARE layer 1's
+    "other" clusters, the ones its L-ratio was measured against -- so drawing
+    them is what connects this figure to the reference/neighbour idea Figure 7
+    introduces. The CCG partner the RULE used is added even when it is not one
+    of them, because the CCG column has to show the rule's evidence.
     """
     ks_cache = {} if ks_cache is None else ks_cache
     if ks_dir not in ks_cache:
@@ -56,203 +83,271 @@ def load_cluster(session_dir, ks_dir, clu_id, ks_cache=None):
     idx = np.where(sp.clu == clu_id)[0]
     out = {'clu_id': clu_id, 'n_spikes': int(idx.size),
            'times': sp.st[idx], 'amps': sp.temp_scaling_amps[idx],
-           'feats': None, 'wf': None, 'noise_wf': None}
+           'feats': _flat_feats(sp, clu_id), 'wf': None, 'noise_wf': None,
+           'screen_unit': None, 'screen_noise': None, 'others': []}
 
-    if sp.pc_feat is not None and idx.size:
-        npc = min(N_PC, sp.pc_feat.shape[1])
-        flat = sp.pc_feat[idx, :npc, :].reshape(idx.size, -1)
-        out['feats'] = flat[np.all(np.isfinite(flat), axis=1)]
-
-    # Waveforms: pool the per-frame means the screen already stored.
-    p = _iso_dir(session_dir) / f'{clu_id + 1}.SortData.h5'
+    p = Path(session_dir) / 'isolation' / f'{clu_id + 1}.SortData.h5'
+    neigh = []
     if p.exists():
         import h5py
         with h5py.File(p, 'r') as h:
-            cw = [h[f][  'clu_wf'][:] for f in h if 'clu_wf' in h[f]]
-            nw = [h[f]['noise_wf'][:] for f in h if 'noise_wf' in h[f]]
+            frames = sorted(h.keys())
+            cw = [h[f]['clu_wf'][:] for f in frames if 'clu_wf' in h[f]]
+            nw = [h[f]['noise_wf'][:] for f in frames if 'noise_wf' in h[f]]
+            u = [h[f]['unit'][:] for f in frames if 'unit' in h[f]]
+            nz = [h[f]['noise'][:] for f in frames if 'noise' in h[f]]
+            wf_by_clu = {}
+            for f in frames:
+                # Not every frame carries both: a frame can name a neighbour
+                # without storing its waveform. Collect ids regardless, and
+                # waveforms only where they exist.
+                if 'other_clu' not in h[f]:
+                    continue
+                ids = np.atleast_1d(h[f]['other_clu'][:]).astype(int)
+                wfs = (np.atleast_2d(h[f]['other_clu_wf'][:])
+                       if 'other_clu_wf' in h[f] else None)
+                for j, cid in enumerate(ids):
+                    ent = wf_by_clu.setdefault(int(cid), [])
+                    if wfs is not None and j < len(wfs):
+                        ent.append(wfs[j])
         if cw:
             out['wf'] = np.mean(np.vstack(cw), axis=0)
         if nw:
             out['noise_wf'] = np.mean(np.vstack(nw), axis=0)
-        # Rule 4a tests the unit against its REFERENCE CHANNEL, not against
-        # another cluster, and that comparison lives only here. Without it the
-        # biggest rule in the corpus has a firing column with nothing in it.
-        with h5py.File(p, 'r') as h:
-            u = [h[f]['unit'][:] for f in h if 'unit' in h[f]]
-            nz = [h[f]['noise'][:] for f in h if 'noise' in h[f]]
         if u:
             out['screen_unit'] = np.vstack(u)
         if nz:
             out['screen_noise'] = np.vstack(nz)
+        neigh = [(c, (np.mean(np.vstack(v), axis=0) if v else None))
+                 for c, v in wf_by_clu.items()]
+
+    out['_sp'] = sp
+    for cid, wf in neigh[:max_others]:
+        oidx = np.where(sp.clu == cid)[0]
+        out['others'].append({
+            'clu_id': cid, 'wf': wf, 'role': 'same channel',
+            'times': sp.st[oidx], 'amps': sp.temp_scaling_amps[oidx],
+            'feats': _flat_feats(sp, cid)})
     return out
 
 
-def partner_of(row, sp_clu=None):
-    """The cluster this one is drawn against, and why.
+def align_primary(data):
+    """Align the unit with its primary neighbour on the channels they share.
 
-    Chosen from the record so the CCG and feature-space columns show the
-    partner the RULE actually used, not the nearest one by some fresh metric.
+    Called after add_rule_partner() so the pair drawn is the one the rule
+    used, falling back to the screen's same-channel neighbour.
     """
-    if row.get('redundant_of') is not None:
-        return int(row['redundant_of']), 'counted under'
-    ov = row.get('overlap_pairs') or []
-    if ov:
-        p = ov[0]
-        return int(p['clu'] if isinstance(p, dict) else p), 'overlapping'
-    acc = [a for a in (row.get('ccg_accusers') or [])
-           if isinstance(a, dict) and a.get('z') is not None]
-    if acc:
-        return int(max(acc, key=lambda a: a['z'])['clu']), 'accuser'
-    return None, None
+    sp = data.get('_sp')
+    others = data.get('others') or []
+    if sp is None or sp.pc_feat is None or not others:
+        return data
+    prt = next((o for o in others if o.get('is_partner')), others[0])
+    fa, fb, n_shared = aligned_features(sp.pc_feat, sp.pc_feat_ind,
+                                        data['clu_id'], prt['clu_id'], sp.clu)
+    if fa is not None and len(fa) and fb is not None and len(fb):
+        data['fs_aligned'] = (fa, fb, prt['clu_id'], n_shared)
+    return data
 
 
-def draw_row(axes, rec_row, data, partner=None, partner_why=None,
-             show_xlabels=False):
-    """Draw one cluster across the six axes. `axes` is length 6."""
-    a_wf, a_isi, a_prj, a_amp, a_fs, a_ccg = axes
-    fired = rec_row.get('_fires')           # column name, set by the caller
+def add_rule_partner(data, rec_row, sp_cache_entry):
+    """Ensure the partner the RULE used is present, flagged with why."""
+    have = {o['clu_id'] for o in data['others']}
+    pid, why = None, None
+    if rec_row.get('redundant_of') is not None:
+        pid, why = int(rec_row['redundant_of']), 'counted under'
+    elif rec_row.get('overlap_pairs'):
+        p = rec_row['overlap_pairs'][0]
+        pid, why = int(p['clu'] if isinstance(p, dict) else p), 'overlapping'
+    else:
+        acc = [a for a in (rec_row.get('ccg_accusers') or [])
+               if isinstance(a, dict) and a.get('z') is not None]
+        if acc:
+            pid, why = int(max(acc, key=lambda a: a['z'])['clu']), 'accuser'
+    if pid is None:
+        return data
+    for o in data['others']:
+        if o['clu_id'] == pid:
+            o['role'] = why
+            o['is_partner'] = True
+            return data
+    sp = sp_cache_entry
+    oidx = np.where(sp.clu == pid)[0]
+    if oidx.size:
+        data['others'].insert(0, {
+            'clu_id': pid, 'wf': None, 'role': why, 'is_partner': True,
+            'times': sp.st[oidx], 'amps': sp.temp_scaling_amps[oidx],
+            'feats': _flat_feats(sp, pid)})
+    return data
+
+
+def draw_row(axes, rec_row, data, show_xlabels=False):
+    """Draw one cluster across six axes: wf, isi, feature space, projection,
+    amplitude, ccg."""
+    a_wf, a_isi, a_fs, a_prj, a_amp, a_ccg = axes
+    fired = rec_row.get('_fires')
+    others = data.get('others') or []
+    ocol = {o['clu_id']: C_OTHER[i % len(C_OTHER)] for i, o in enumerate(others)}
 
     def frame(ax, col):
         for s in ax.spines.values():
             s.set_linewidth(2.0 if col == fired else 0.6)
             s.set_color(C_FIRE if col == fired else '#B9BEC6')
 
-    # --- waveform: the unit and the reference channel it is tested against
+    def tag(ax, txt, col, y):
+        ax.text(.03, y, txt, transform=ax.transAxes, fontsize=5.5,
+                va='top', color=col)
+
+    # --- waveform: this unit, its reference channel, and its neighbours
     if data['wf'] is not None:
         t = np.arange(len(data['wf'])) / FS * 1000
         pk = np.max(np.abs(data['wf'])) + 1e-12
-        a_wf.plot(t, data['wf'] / pk, color=C_UNIT, lw=1.4)
+        for o in others:
+            if o.get('wf') is not None and len(o['wf']) == len(t):
+                a_wf.plot(t, o['wf'] / pk, color=ocol[o['clu_id']], lw=1.0,
+                          alpha=.85)
         if data['noise_wf'] is not None:
             a_wf.plot(t, data['noise_wf'] / pk, color=C_REF, lw=1.0, ls='--')
-        a_wf.set_ylim(-1.35, 1.0)
-    else:
-        a_wf.text(.5, .5, 'no waveform', ha='center', va='center',
-                  transform=a_wf.transAxes, fontsize=6, color=C_QUIET)
+        a_wf.plot(t, data['wf'] / pk, color=C_UNIT, lw=1.6)
+        a_wf.set_ylim(-1.45, 1.15)
+        y = .97
+        tag(a_wf, f"clu {data['clu_id']}", C_UNIT, y)
+        for o in others:
+            if o.get('wf') is not None:
+                y -= .13
+                tag(a_wf, f"clu {o['clu_id']}", ocol[o['clu_id']], y)
+        if data['noise_wf'] is not None:
+            tag(a_wf, 'reference ch', C_REF, y - .13)
     frame(a_wf, 'waveform')
 
-    # --- ISI: the refractory zone is the test, so shade it
+    # --- ISI: within-cluster, so no other cluster belongs here
     st = data['times']
     if st.size > 2:
         isi = np.diff(np.sort(st)) * 1000
         isi = isi[isi > 0]
         if isi.size:
             bins = np.logspace(-1, np.log10(max(isi.max(), 10)), 40)
-            a_isi.hist(isi, bins=bins, color=C_QUIET, lw=0)
+            a_isi.hist(isi, bins=bins, color=C_HIST, lw=0)
             a_isi.set_xscale('log')
             a_isi.axvspan(0.1, 1.0, color=C_FIRE, alpha=.13, lw=0)
     frame(a_isi, 'isi')
 
-    # --- 1-D projection: what the dip test actually sees
-    basis = rec_row.get('dip_basis')
+    # --- KS4 feature space: the unit (split by imposed group when the dip is
+    # real), the neighbours, and the reference channel. Both scopes live here
+    # because both rules that read feature space -- 4a against the reference
+    # channel, 5a against a neighbour -- need their evidence visible.
+    dp = rec_row.get('_dip_pval')
+    split_is_real = _isfinite(dp) and dp < DIP_PVAL_THRESH
     res = None
     if data['feats'] is not None and len(data['feats']) >= 240:
         try:
             res = overmerge_verdict(data['feats'])
         except Exception:
             res = None
-    if res and res.get('proj') is not None:
+    # NO REFERENCE CHANNEL HERE. The screen's unit/noise clouds live in the
+    # screen's own 3-D space, not KS4's flattened multichannel PCs -- drawing
+    # them on these axes put two different feature spaces on one pair of axes,
+    # and the reference cloud's scale squashed the unit to a dot. The
+    # reference channel is a CHANNEL, not a cluster: it has no KS4 cluster
+    # features, and it appears in this figure as a waveform.
+    #
+    # ALIGNED TO SHARED CHANNELS. KS4 stores every cluster's features on its
+    # OWN local channel set, so column 0 is a different channel for different
+    # clusters; plotting raw columns together compares two channels and calls
+    # the result separation. aligned_features() restricts both to the channels
+    # they share, which is the only way the two clouds are comparable. The
+    # unit is drawn in the primary neighbour's alignment so one pair of axes
+    # means one thing.
+    fs_pair = data.get('fs_aligned')
+    if fs_pair is not None:
+        fa, fb, oid, n_shared = fs_pair
+        a_fs.scatter(fb[:, 0], fb[:, 1], s=.6, color=ocol.get(oid, C_OTHER[0]),
+                     alpha=.35, linewidths=0)
+        lab = res.get('labels') if (res and split_is_real) else None
+        if lab is not None and len(lab) == len(fa):
+            lab = np.asarray(lab)
+            a_fs.scatter(fa[lab == 0, 0], fa[lab == 0, 1], s=.6, color=C_UNIT,
+                         alpha=.55, linewidths=0)
+            a_fs.scatter(fa[lab == 1, 0], fa[lab == 1, 1], s=.6, color=C_SPLIT,
+                         alpha=.55, linewidths=0)
+        else:
+            a_fs.scatter(fa[:, 0], fa[:, 1], s=.6, color=C_UNIT, alpha=.5,
+                         linewidths=0)
+        role = next((o['role'] for o in others if o['clu_id'] == oid), '')
+        tag(a_fs, f'clu {oid} ({role})', ocol.get(oid, C_OTHER[0]), .97)
+        tag(a_fs, f'{n_shared} shared channels', C_QUIET, .84)
+    elif data['feats'] is not None and len(data['feats']):
+        f = data['feats']
+        a_fs.scatter(f[:, 0], f[:, 1], s=.6, color=C_UNIT, alpha=.5,
+                     linewidths=0)
+        tag(a_fs, 'no shared-channel neighbour', C_QUIET, .97)
+    frame(a_fs, 'feature_space')
+
+    # --- 1-D projection: purely within-cluster
+    if res is not None and res.get('proj') is not None:
         proj = np.asarray(res['proj'], float)
-        dp_rec = rec_row.get('_dip_pval')
-        split_is_real = (isinstance(dp_rec, (int, float))
-                         and math.isfinite(dp_rec) and dp_rec < DIP_PVAL_THRESH)
-        # THE TWO-GROUP COLOURING IS ALWAYS AVAILABLE AND ALMOST ALWAYS WRONG.
-        # The split is imposed on every cluster whether or not it has two
-        # modes, so colouring it on a unimodal cluster shows a reader two
-        # populations that the test just said were not there. Only the dip
-        # decides, so only a significant dip gets two colours.
+        # THE TWO-GROUP COLOURING IS ALWAYS AVAILABLE AND USUALLY WRONG. The
+        # split is imposed on every cluster whether or not it has two modes,
+        # so colouring a unimodal one shows two populations the test just
+        # ruled out. Only a significant dip earns the second colour.
         lab = res.get('labels') if split_is_real else None
         if lab is not None and len(lab) == len(proj) and len(set(lab)) > 1:
+            lab = np.asarray(lab)
             bins = np.linspace(proj.min(), proj.max(), 34)
-            for g, col in ((0, C_UNIT), (1, C_G2)):
-                a_prj.hist(proj[np.asarray(lab) == g], bins=bins, color=col, lw=0)
+            a_prj.hist(proj[lab == 0], bins=bins, color=C_UNIT, lw=0)
+            a_prj.hist(proj[lab == 1], bins=bins, color=C_SPLIT, lw=0)
         else:
             a_prj.hist(proj, bins=30, color=C_UNIT, lw=0)
-        dp = dp_rec                          # from the RECORD, never recomputed
-        if isinstance(dp, (int, float)) and math.isfinite(dp):
-            a_prj.text(.03, .93, f'dip p = {dp:.3f}', transform=a_prj.transAxes,
-                       fontsize=6, va='top',
-                       color=C_FIRE if dp < DIP_PVAL_THRESH else C_QUIET)
-        if basis:
-            a_prj.text(.97, .93, basis, transform=a_prj.transAxes,
-                       fontsize=5, color=C_QUIET, ha='right', va='top')
+        if _isfinite(dp):
+            a_prj.text(.03, .97, f'dip p = {dp:.3f}', transform=a_prj.transAxes,
+                       fontsize=5.5, va='top',
+                       color=C_FIRE if split_is_real else C_QUIET)
+        if rec_row.get('dip_basis'):
+            a_prj.text(.97, .97, rec_row['dip_basis'], transform=a_prj.transAxes,
+                       fontsize=4.5, color=C_QUIET, ha='right', va='top')
     else:
         a_prj.text(.5, .5, 'dip not evaluated', ha='center', va='center',
                    transform=a_prj.transAxes, fontsize=6, color=C_QUIET)
     frame(a_prj, 'projection')
 
-    # --- amplitude over time: where intermittent presence shows
+    # --- amplitude over time: this unit against the same neighbours
+    for o in others:
+        if o.get('times') is not None and o['times'].size:
+            a_amp.scatter(o['times'] / 60, o['amps'], s=.6,
+                          color=ocol[o['clu_id']], alpha=.30, linewidths=0)
     if st.size:
-        a_amp.scatter(st / 60, data['amps'], s=.7, color=C_UNIT,
-                      alpha=.45, linewidths=0)
-        af = rec_row.get('absent_frame_frac')
-        if isinstance(af, (int, float)) and math.isfinite(af) and af > 0:
-            a_amp.text(.03, .93, f'absent {af:.0%}', transform=a_amp.transAxes,
-                       fontsize=6, va='top',
-                       color=C_FIRE if af > ABSENT_FRAME_FRAC_THRESH else C_QUIET)
+        a_amp.scatter(st / 60, data['amps'], s=.6, color=C_UNIT, alpha=.5,
+                      linewidths=0)
+    af = rec_row.get('absent_frame_frac')
+    if _isfinite(af) and af > 0:
+        a_amp.text(.03, .97, f'absent {af:.0%}', transform=a_amp.transAxes,
+                   fontsize=5.5, va='top',
+                   color=C_FIRE if af > ABSENT_FRAME_FRAC_THRESH else C_QUIET)
     frame(a_amp, 'amplitude')
 
-    # --- feature space: the unit against whatever it was compared with
-    if data['feats'] is not None and len(data['feats']):
-        f = data['feats']
-        a_fs.scatter(f[:, 0], f[:, 1], s=.7, color=C_UNIT, alpha=.4, linewidths=0)
-        if partner is not None and partner.get('feats') is not None:
-            g = partner['feats']
-            a_fs.scatter(g[:, 0], g[:, 1], s=.7, color=C_PARTNER,
-                         alpha=.4, linewidths=0)
-            a_fs.text(.03, .93, f'vs clu {partner["clu_id"]}',
-                      transform=a_fs.transAxes, fontsize=6, va='top',
-                      color=C_PARTNER)
-        elif data.get('screen_unit') is not None and data.get('screen_noise') is not None:
-            a_fs.clear()
-            u, nz = data['screen_unit'], data['screen_noise']
-            a_fs.scatter(nz[:, 0], nz[:, 1], s=.7, color=C_REF, alpha=.5,
-                         linewidths=0)
-            a_fs.scatter(u[:, 0], u[:, 1], s=.7, color=C_UNIT, alpha=.5,
-                         linewidths=0)
-            a_fs.text(.03, .93, 'vs reference channel',
-                      transform=a_fs.transAxes, fontsize=6, va='top',
-                      color=C_REF)
-    sep = rec_row.get('between_cluster_confirmed_separated')
-    if sep is None and data.get('screen_unit') is None:
-        a_fs.text(.5, .06, 'not evaluated', ha='center',
-                  transform=a_fs.transAxes, fontsize=6, color=C_QUIET)
-    frame(a_fs, 'feature_space')
-
-    # --- CCG against that same partner, with the calibrated gate named
-    if partner is not None and partner.get('times') is not None and st.size:
-        try:
-            # compute_ccg takes RAW SAMPLES and divides by fs itself. Handing
-            # it seconds compressed a 10-minute recording into 20 ms, so every
-            # pair fell inside the window and every CCG came out a triangle.
-            # Same window and bin as the rule, so the panel shows what the gate
-            # saw rather than a prettier version of it.
-            centers, counts = compute_ccg(st * FS, partner['times'] * FS,
-                                          window_ms=CCG_WINDOW_MS,
-                                          bin_ms=CCG_BIN_MS, fs=FS)
-            a_ccg.bar(centers, counts, width=(centers[1] - centers[0]),
-                      color=C_QUIET, lw=0)
-            a_ccg.axvspan(-1, 1, color=C_FIRE, alpha=.13, lw=0)
-            if partner_why:
-                a_ccg.text(.03, .93, partner_why, transform=a_ccg.transAxes,
-                           fontsize=6, va='top', color=C_QUIET)
-        except Exception as e:
-            a_ccg.text(.5, .5, f'ccg failed', ha='center', va='center',
-                       transform=a_ccg.transAxes, fontsize=6, color=C_QUIET)
+    # --- CCG against the partner the rule used, else the first neighbour
+    prt = next((o for o in others if o.get('is_partner')),
+               others[0] if others else None)
+    if prt is not None and prt.get('times') is not None and st.size and prt['times'].size:
+        # compute_ccg takes RAW SAMPLES and divides by fs itself; handing it
+        # seconds compressed the recording into 20 ms and made every CCG a
+        # triangle. Same window and bin as the rule, so the panel shows what
+        # the gate saw.
+        centers, counts = compute_ccg(st * FS, prt['times'] * FS,
+                                      window_ms=CCG_WINDOW_MS,
+                                      bin_ms=CCG_BIN_MS, fs=FS)
+        a_ccg.bar(centers, counts, width=(centers[1] - centers[0]),
+                  color=C_HIST, lw=0)
+        a_ccg.axvspan(-1, 1, color=C_FIRE, alpha=.13, lw=0)
+        tag(a_ccg, f"vs clu {prt['clu_id']} ({prt['role']})",
+            ocol.get(prt['clu_id'], C_QUIET), .97)
     elif st.size > 2:
-        # No cluster partner: show this unit against ITSELF. An empty panel
-        # says nothing; the autocorrelogram at least shows the refractory
-        # structure, and is labelled so it is not mistaken for a CCG.
         centers, counts = compute_ccg(st * FS, st * FS,
                                       window_ms=CCG_WINDOW_MS,
                                       bin_ms=CCG_BIN_MS, fs=FS)
         a_ccg.bar(centers, counts, width=(centers[1] - centers[0]),
-                  color=C_QUIET, lw=0)
+                  color=C_HIST, lw=0)
         a_ccg.axvspan(-1, 1, color=C_FIRE, alpha=.13, lw=0)
-        a_ccg.text(.03, .93, 'autocorrelogram', transform=a_ccg.transAxes,
-                   fontsize=6, va='top', color=C_QUIET)
-    else:
-        a_ccg.text(.5, .5, 'no partner', ha='center', va='center',
-                   transform=a_ccg.transAxes, fontsize=6, color=C_QUIET)
+        tag(a_ccg, 'autocorrelogram (no neighbour)', C_QUIET, .97)
     frame(a_ccg, 'ccg')
 
     for ax in axes:
