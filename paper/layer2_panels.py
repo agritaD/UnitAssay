@@ -704,22 +704,17 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
     # panel keeps its own labels.
     for ax in axes:
         ax.tick_params(labelsize=5, length=2, pad=1)
-    AXLAB = ((a_wf, 'time (ms)', 'norm. amplitude'),
-             (a_isi, 'ISI (ms)', 'count'),
-             (a_win, 'PC 1', 'PC 2'),
-             (a_prj, 'LDA projection', 'count'),
-             (a_btw, 'PC 1 (shared ch)', 'PC 2'),
-             (a_ccg, 'lag (ms)', 'coincidences'))
-    for ax, xl, yl in AXLAB:
-        ax.set_xlabel(xl, fontsize=5.5, labelpad=1)
-        ax.set_ylabel(yl, fontsize=5.5, labelpad=1)
+    # NUMBERS, NOT WORDS. The column headings already say what each panel is,
+    # so a per-panel axis label repeats them six times down the page. What
+    # cannot be dropped is the numeric scale: every row has its own limits --
+    # recordings from 4.3 to 36.5 minutes, amplitudes on different scales --
+    # so the ticks stay and the words go.
+    for ax in (a_wf, a_isi, a_win, a_prj, a_btw, a_ccg):
         ax.tick_params(labelsize=4.5, length=2, pad=1, labelleft=True,
                        labelbottom=True)
         ax.yaxis.set_major_locator(MaxNLocator(3))
         if ax is not a_isi:                       # log axis picks its own
             ax.xaxis.set_major_locator(MaxNLocator(4))
-        for t in ax.get_xticklabels():
-            t.set_visible(True)
 
     # EVERY ROW GETS ITS OWN AMPLITUDE AXES. Recording length and amplitude
     # scale differ from row to row -- 6 to 37 minutes across these six -- so
@@ -731,5 +726,4 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
     a_amp.xaxis.set_major_locator(MaxNLocator(4))
     for lab_ in a_amp.get_xticklabels():
         lab_.set_visible(True)
-    a_amp.set_xlabel('time (min)', fontsize=5.5, labelpad=1)
-    a_amp.set_ylabel('amplitude (a.u.)', fontsize=5.5, labelpad=1)
+
