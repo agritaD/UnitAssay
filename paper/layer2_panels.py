@@ -416,6 +416,14 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
             res = None
     lab = (np.asarray(res['labels'])
            if (res and res.get('labels') is not None) else None)
+    # WHERE ORANGE IS LICENSED (Agrita). The within-cluster PC and the 1-D
+    # projection are ABOUT the imposed split and say so, so they show it on
+    # every row -- that is how a reader sees it fail to separate. The
+    # between-cluster panel and the amplitude trace are about this cluster in
+    # relation to others, and coluring an unadopted split there would assert a
+    # second population as an entity. Only the adopted verdict licenses that,
+    # so elsewhere the unit is drawn as one cluster.
+    lab_claim = lab if split_is_real else None
 
     # --- within-cluster PC: ONE cluster, coloured by the split the dip
     # imposes on it. No alignment question arises -- these are all the same
@@ -473,14 +481,14 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         a_btw.scatter(fb[:, 0], fb[:, 1], s=2.6, color=ocol.get(oid, C_OTHER[0]),
                       alpha=.80, linewidths=0)
         reg = data.get('fs_unit_registered')
-        if lab is not None and reg is not None and len(reg) == len(lab):
+        if lab_claim is not None and reg is not None and len(reg) == len(lab_claim):
             # An over-merge is two populations in ONE cluster, so the question
             # this panel has to answer is WHICH of them sits on the neighbour.
             # Drawn in one colour it cannot answer it.
-            a_btw.scatter(reg[lab == 0, 0], reg[lab == 0, 1], s=2.6,
-                          color=C_UNIT, alpha=.80, linewidths=0)
-            a_btw.scatter(reg[lab == 1, 0], reg[lab == 1, 1], s=2.6,
-                          color=C_SPLIT, alpha=.80, linewidths=0)
+            a_btw.scatter(reg[lab_claim == 0, 0], reg[lab_claim == 0, 1],
+                          s=2.6, color=C_UNIT, alpha=.80, linewidths=0)
+            a_btw.scatter(reg[lab_claim == 1, 0], reg[lab_claim == 1, 1],
+                          s=2.6, color=C_SPLIT, alpha=.80, linewidths=0)
         else:
             a_btw.scatter(fa[:, 0], fa[:, 1], s=2.6, color=C_UNIT, alpha=.80,
                           linewidths=0)
@@ -511,14 +519,14 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         if mx is not None:
             a_amp.plot(mx, my, color=pcol, lw=2.0, path_effects=[_pe.Stroke(linewidth=2.9, foreground='white'), _pe.Normal()])
     msk = data.get('split_mask')
-    if (st.size and lab is not None and msk is not None
-            and int(np.sum(msk)) == len(lab)):
+    if (st.size and lab_claim is not None and msk is not None
+            and int(np.sum(msk)) == len(lab_claim)):
         # The two halves of an over-merge are two populations in time as well
         # as in feature space, and whether they differ in amplitude is part of
         # what the row is for. Drawn in one colour the panel cannot say.
         ts, as_ = st[msk] / 60, np.asarray(data['amps'])[msk]
         for g, col in ((0, C_UNIT), (1, C_SPLIT)):
-            m = (lab == g)
+            m = (lab_claim == g)
             if m.sum():
                 a_amp.scatter(ts[m], as_[m], s=2.2, color=col, alpha=.65,
                               linewidths=0)
