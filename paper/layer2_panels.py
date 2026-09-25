@@ -65,16 +65,32 @@ FS = 30000.0
 # channel by definition, so it should not be drawn in the colour that means
 # "layer 1 compared these". Both hues validated all-pairs for CVD against the
 # unit blue and the split orange (worst pair dE 15.6 deutan).
-C_SAME_POOL = '#C2185B'     # another cluster INSIDE layer 1's pool
-C_OFF_POOL = '#E386B7'      # one outside it -- lighter shade of the same family
+# PASTEL FILLS, FULL-STRENGTH LINES. Agrita: the saturated hues are harsh,
+# and Figure 3 is easy on the eyes. Sampling Figure 3's own panels shows why
+# -- its dot cores ARE saturated (#30489C, #B41824), but the dots are small
+# over white, so the FIELD reads light while every stroke stays crisp. These
+# panels have far denser clouds, so the same trick does not carry: the fills
+# are tints (20% white) and the lines, waveforms and labels keep the full
+# hue, which is what has to hold at 5 pt.
+#
+# The four tints pass every check all-pairs -- lightness band, chroma floor,
+# CVD separation (worst 9.5 dE deutan) and the normal-vision floor.
+C_UNIT = '#6175B6'          # this cluster -- tint of the manuscript blue
+C_SPLIT = '#3BBB70'         # the minority group the imposed split peels off
+C_SAME_POOL = '#CE4679'     # another cluster INSIDE layer 1's pool
+C_OFF_POOL = '#E692BE'      # one outside it -- lighter, same family
 C_OTHER = (C_SAME_POOL, C_OFF_POOL)
+
+L_UNIT = '#3953A4'          # full strength, for strokes and text
+L_SPLIT = '#0AAA4B'
+L_POOL = {C_SAME_POOL: '#C2185B', C_OFF_POOL: '#D4569B'}
+
 C_REF = '#9AA3AE'           # the reference channel: a channel, not a cluster
 C_FRAME = '#14213D'         # the panel whose evidence the rule read
 C_WASH = '#EFF2F7'          # its background, instead of a coloured border
 C_QUIET = '#5B6470'
-C_UNIT = '#3953A4'     # this cluster -- the manuscript/layer-1 blue
-C_SPLIT = '#0AAA4B'    # the minority group the imposed split peels off
-C_HIST = '#7A828C'
+C_HIST = '#9098A3'
+C_REFRAC = '#BF1E2D'        # the refractory window, shaded red
 
 
 def _isfinite(x):
@@ -357,10 +373,10 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         peak = np.max(np.abs(data['wf'])) + 1e-12
         if primary is not None and primary.get('wf') is not None \
                 and len(primary['wf']) == len(t):
-            a_wf.plot(t, primary['wf'] / peak, color=pcol, lw=1.1, ls=':')
+            a_wf.plot(t, primary['wf'] / peak, color=L_POOL.get(pcol, pcol), lw=1.2, ls=':')
         if data['noise_wf'] is not None:
             a_wf.plot(t, data['noise_wf'] / peak, color=C_REF, lw=1.1, ls='--')
-        a_wf.plot(t, data['wf'] / peak, color=C_UNIT, lw=1.8)
+        a_wf.plot(t, data['wf'] / peak, color=L_UNIT, lw=1.8)
         # Every trace is scaled by THIS unit's peak -- that shared scale is
         # what the printed ratio means, so it stays. But a neighbour can be
         # several times larger, and a fixed y-limit then cropped it into a
@@ -377,7 +393,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         # headroom at the top for the three legend lines
         a_wf.set_ylim(lo - pad, hi + pad + 0.55 * (hi - lo + 1e-9))
         y = .97
-        tag(a_wf, f"clu {data['clu_id']} peak ch", C_UNIT, y); y -= .125
+        tag(a_wf, f"clu {data['clu_id']} peak ch", L_UNIT, y); y -= .125
         if data['noise_wf'] is not None:
             nz = np.max(np.abs(data['noise_wf']))
             if np.isfinite(nz) and nz > 0:
@@ -398,7 +414,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
             bins = np.logspace(-1, np.log10(max(isi.max(), 10)), 40)
             a_isi.hist(isi, bins=bins, color=C_HIST, lw=0)
             a_isi.set_xscale('log')
-            a_isi.axvspan(0.1, 1.0, color=C_QUIET, alpha=.13, lw=0)
+            a_isi.axvspan(0.1, 1.0, color=C_REFRAC, alpha=.15, lw=0)
     frame(a_isi, 'isi')
 
     dp = rec_row.get('_dip_pval')
@@ -458,7 +474,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                           color=C_UNIT, alpha=.92, linewidths=0)
             a_win.scatter(fw[lab == 1, 0], fw[lab == 1, 1], s=2.6,
                           color=C_SPLIT, alpha=.92, linewidths=0)
-            tag(a_win, 'imposed split', C_SPLIT if split_is_real else C_QUIET,
+            tag(a_win, 'imposed split', L_SPLIT if split_is_real else C_QUIET,
                 .97)
         else:
             a_win.scatter(fw[:, 0], fw[:, 1], s=3.0, color=C_UNIT,
@@ -483,7 +499,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
             note = f'dip p = {dp:.3f}'
             if dip_sig and not split_is_real:
                 note += f'  ({verdict})'
-            tag(a_prj, note, C_SPLIT if split_is_real else C_QUIET, .97)
+            tag(a_prj, note, L_SPLIT if split_is_real else C_QUIET, .97)
         if rec_row.get('dip_basis'):
             # bottom right: the basis string runs long and collided with the
             # p-value once the verdict was appended to it
@@ -544,7 +560,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                       color=pcol, alpha=.85, linewidths=0)
         mx, my = _running(primary['times'] / 60, primary['amps'])
         if mx is not None:
-            a_amp.plot(mx, my, color=pcol, lw=2.0)
+            a_amp.plot(mx, my, color=L_POOL.get(pcol, pcol), lw=1.8)
     msk = data.get('split_mask')
     if (st.size and lab_claim is not None and msk is not None
             and int(np.sum(msk)) == len(lab_claim)):
@@ -561,13 +577,13 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                 if gx is not None:
                     # a bare line disappears into its own point cloud; the
                     # white halo is what makes each trace readable
-                    a_amp.plot(gx, gy, color=col, lw=2.0)
+                    a_amp.plot(gx, gy, color=(L_UNIT if col == C_UNIT else L_SPLIT), lw=1.8)
     elif st.size:
         a_amp.scatter(st / 60, data['amps'], s=2.6, color=C_UNIT, alpha=.85,
                       linewidths=0)
         mx, my = _running(st / 60, data['amps'])
         if mx is not None:
-            a_amp.plot(mx, my, color=C_UNIT, lw=2.0)
+            a_amp.plot(mx, my, color=L_UNIT, lw=1.8)
     af = rec_row.get('absent_frame_frac')
     if _isfinite(af) and af > 0:
         tag(a_amp, f'absent {af:.0%}',
@@ -589,11 +605,11 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         # bins the silhouette reads, and a re-detection's lag is still
         # resolved. The gate's own resolution is unchanged -- the modal lag
         # printed below is measured on the 0.5 ms bins.
-        centers, counts = _rebin(centers, counts, 2)
+        centers, counts = _rebin(centers, counts, 4)      # 0.5 -> 2 ms bins
         a_ccg.bar(centers, counts, width=(centers[1] - centers[0]) * 0.92,
                   color=C_HIST, lw=0, alpha=.95)
         a_ccg.set_ylim(0, max(1.0, float(counts.max()) * 1.22))
-        a_ccg.axvspan(-1, 1, color=C_QUIET, alpha=.15, lw=0)
+        a_ccg.axvspan(-1, 1, color=C_REFRAC, alpha=.18, lw=0)
         # DRAW THE LEVEL THE CENTRE IS JUDGED AGAINST. The statistic compares
         # the +-1 ms window with the 5-20 ms flanks, and at three counts a bin
         # an empty centre is invisible against a noisy silhouette -- the dip
@@ -653,11 +669,11 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         # bins the silhouette reads, and a re-detection's lag is still
         # resolved. The gate's own resolution is unchanged -- the modal lag
         # printed below is measured on the 0.5 ms bins.
-        centers, counts = _rebin(centers, counts, 2)
+        centers, counts = _rebin(centers, counts, 4)      # 0.5 -> 2 ms bins
         a_ccg.bar(centers, counts, width=(centers[1] - centers[0]) * 0.92,
                   color=C_HIST, lw=0, alpha=.95)
         a_ccg.set_ylim(0, max(1.0, float(counts.max()) * 1.22))
-        a_ccg.axvspan(-1, 1, color=C_QUIET, alpha=.15, lw=0)
+        a_ccg.axvspan(-1, 1, color=C_REFRAC, alpha=.18, lw=0)
         tag(a_ccg, 'autocorrelogram (no neighbour)', C_QUIET, .97)
     frame(a_ccg, 'ccg')
 
