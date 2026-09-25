@@ -79,14 +79,19 @@ def _isfinite(x):
             and math.isfinite(x))
 
 
-def _flat_feats(sp, clu_id):
+def _flat_feats(sp, clu_id, with_mask=False):
     idx = np.where(sp.clu == clu_id)[0]
     if sp.pc_feat is None or not idx.size:
-        return None
+        return (None, None) if with_mask else None
     npc = min(N_PC, sp.pc_feat.shape[1])
     flat = sp.pc_feat[idx, :npc, :].reshape(idx.size, -1)
-    flat = flat[np.all(np.isfinite(flat), axis=1)]
-    return flat if flat.size else None
+    # KEEP THE MASK. The imposed-split labels are computed on the rows that
+    # survive here, so the spike times and amplitudes cannot be coloured by
+    # those labels unless we know which spikes they correspond to.
+    keep = np.all(np.isfinite(flat), axis=1)
+    out = flat[keep]
+    out = out if out.size else None
+    return (out, keep) if with_mask else out
 
 
 def load_row(session_dir, ks_dir, clu_id, ks_cache=None, max_others=2):
@@ -106,8 +111,10 @@ def load_row(session_dir, ks_dir, clu_id, ks_cache=None, max_others=2):
     idx = np.where(sp.clu == clu_id)[0]
     out = {'clu_id': clu_id, 'n_spikes': int(idx.size),
            'times': sp.st[idx], 'amps': sp.temp_scaling_amps[idx],
-           'feats': _flat_feats(sp, clu_id), 'wf': None, 'noise_wf': None,
+           'feats': None, 'wf': None, 'noise_wf': None,
            'screen_unit': None, 'screen_noise': None, 'others': []}
+
+    out['feats'], out['split_mask'] = _flat_feats(sp, clu_id, with_mask=True)
 
     p = Path(session_dir) / 'isolation' / f'{clu_id + 1}.SortData.h5'
     neigh = []
@@ -377,7 +384,16 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
     frame(a_isi, 'isi')
 
     dp = rec_row.get('_dip_pval')
-    split_is_real = _isfinite(dp) and dp < DIP_PVAL_THRESH
+    # A SIGNIFICANT DIP IS NOT AN ADOPTED VERDICT. 1,254 clusters in the corpus
+    # carry dip p < 0.05 that curate did NOT call over-merged -- 1,007 it left
+    # `ambiguous` and 247 it judged `not_overmerged`, usually because the split
+    # peeled off a negligible satellite. Colouring on the raw p would have
+    # shown the reader two populations the tool explicitly declined to claim,
+    # which is the same mislabel as reading an absent dominant_source as a
+    # clean result. The verdict decides; the p-value is only reported.
+    verdict = rec_row.get('ldl_verdict')
+    dip_sig = _isfinite(dp) and dp < DIP_PVAL_THRESH
+    split_is_real = (verdict == 'overmerged')
     res = None
     if data['feats'] is not None and len(data['feats']) >= 240:
         try:
@@ -418,11 +434,15 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         else:
             a_prj.hist(proj, bins=30, color=C_UNIT, lw=0)
         if _isfinite(dp):
-            tag(a_prj, f'dip p = {dp:.3f}',
-                C_FIRE if split_is_real else C_QUIET, .97)
+            note = f'dip p = {dp:.3f}'
+            if dip_sig and not split_is_real:
+                note += f'  ({verdict})'
+            tag(a_prj, note, C_FIRE if split_is_real else C_QUIET, .97)
         if rec_row.get('dip_basis'):
-            a_prj.text(.97, .97, rec_row['dip_basis'], transform=a_prj.transAxes,
-                       fontsize=4.5, color=C_QUIET, ha='right', va='top')
+            # bottom right: the basis string runs long and collided with the
+            # p-value once the verdict was appended to it
+            a_prj.text(.97, .04, rec_row['dip_basis'], transform=a_prj.transAxes,
+                       fontsize=4.5, color=C_QUIET, ha='right', va='bottom')
     else:
         a_prj.text(.5, .5, 'dip not evaluated', ha='center', va='center',
                    transform=a_prj.transAxes, fontsize=6, color=C_QUIET)
@@ -475,7 +495,22 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         mx, my = _running(primary['times'] / 60, primary['amps'])
         if mx is not None:
             a_amp.plot(mx, my, color=pcol, lw=1.3)
-    if st.size:
+    msk = data.get('split_mask')
+    if (st.size and lab is not None and msk is not None
+            and int(np.sum(msk)) == len(lab)):
+        # The two halves of an over-merge are two populations in time as well
+        # as in feature space, and whether they differ in amplitude is part of
+        # what the row is for. Drawn in one colour the panel cannot say.
+        ts, as_ = st[msk] / 60, np.asarray(data['amps'])[msk]
+        for g, col in ((0, C_UNIT), (1, C_SPLIT)):
+            m = (lab == g)
+            if m.sum():
+                a_amp.scatter(ts[m], as_[m], s=2.2, color=col, alpha=.65,
+                              linewidths=0)
+                gx, gy = _running(ts[m], as_[m])
+                if gx is not None:
+                    a_amp.plot(gx, gy, color=col, lw=1.5)
+    elif st.size:
         a_amp.scatter(st / 60, data['amps'], s=2.2, color=C_UNIT, alpha=.65,
                       linewidths=0)
         mx, my = _running(st / 60, data['amps'])
