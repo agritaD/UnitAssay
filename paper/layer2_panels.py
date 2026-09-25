@@ -189,7 +189,7 @@ def load_row(session_dir, ks_dir, clu_id, ks_cache=None, max_others=2):
     for cid, wf in neigh[:max_others]:
         oidx = np.where(sp.clu == cid)[0]
         out['others'].append({
-            'clu_id': cid, 'wf': wf, 'role': 'same channel',
+            'clu_id': cid, 'wf': wf, 'role': 'nearest neighbour',
             'times': sp.st[oidx], 'amps': sp.temp_scaling_amps[oidx],
             'feats': _flat_feats(sp, cid)})
     return out
@@ -232,7 +232,24 @@ def align_primary(data):
 
 def add_rule_partner(data, rec_row, sp_cache_entry, ks_dir=None,
                      unit_peak_ch=None):
-    """Ensure the partner the RULE used is present, flagged with why."""
+    """Ensure the partner the RULE used is present, flagged with why.
+
+    THE THREE ROLES ARE A LADDER, not three kinds of cluster:
+
+      counted under     a VERDICT. Rule 1 decided these two carry the same
+                        spikes and this one is the redundant copy.
+      CCG accuser       EVIDENCE. That cluster fires in excess coincidence
+                        with this one, above the calibrated z curve -- it
+                        raised the objection, whether or not it was upheld.
+      nearest neighbour NO CLAIM. No rule named a partner, so layer 1's
+                        same-peak-channel neighbour is drawn for context so
+                        the between-cluster columns are not empty.
+
+    Whether the partner shares the unit's peak channel is ORTHOGONAL to all
+    three -- every CCG accuser in this figure is also on the same channel --
+    and is carried by colour instead: magenta inside layer 1's pool, pink
+    outside it.
+    """
     have = {o['clu_id'] for o in data['others']}
     pid, why = None, None
     if rec_row.get('redundant_of') is not None:
@@ -248,7 +265,7 @@ def add_rule_partner(data, rec_row, sp_cache_entry, ks_dir=None,
         acc = [a for a in (rec_row.get('ccg_accusers') or [])
                if isinstance(a, dict) and a.get('z') is not None]
         if acc:
-            pid, why = int(max(acc, key=lambda a: a['z'])['clu']), 'accuser'
+            pid, why = int(max(acc, key=lambda a: a['z'])['clu']), 'CCG accuser'
     if pid is None:
         return data
     for o in data['others']:
@@ -691,8 +708,7 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                     note = 'flat'
             a_ccg.text(.97, .845, note, transform=a_ccg.transAxes,
                        fontsize=SZ_TAG, ha='right', va='top', color=INK)
-        _short = {'same channel': 'same ch', 'counted under': 'counted under',
-                  'overlapping': 'overlap', 'accuser': 'accuser'}
+        _short = {'nearest neighbour': 'nearest', 'overlapping': 'overlap'}
         tag(a_ccg, f"vs clu {primary['clu_id']}  "
             f"{_short.get(primary['role'], primary['role'])}", pcol, .97,
             size=5)

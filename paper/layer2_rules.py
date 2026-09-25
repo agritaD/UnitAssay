@@ -116,7 +116,7 @@ def rule_partner(row):
     acc = [a for a in (row.get('ccg_accusers') or [])
            if isinstance(a, dict) and a.get('z') is not None]
     if acc:
-        return int(max(acc, key=lambda a: a['z'])['clu']), 'accuser'
+        return int(max(acc, key=lambda a: a['z'])['clu']), 'CCG accuser'
     return None, None
 
 
