@@ -422,6 +422,25 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         a_ccg.bar(centers, counts, width=(centers[1] - centers[0]),
                   color=C_HIST, lw=0)
         a_ccg.axvspan(-1, 1, color=C_FIRE, alpha=.16, lw=0)
+        # THE LAG IS THE TEST, NOT THE EXCESS. Re-detections peak OFF zero --
+        # the duplicate exemplars sit at +/-0.25 to 1.35 ms -- which is why a
+        # zero-centred coincidence test (SpikeInterface's delta_time=0.4)
+        # catches none of them. Over the +/-25 ms the gate uses, a 1.25 ms
+        # offset is indistinguishable from zero by eye, so the panel has to
+        # say where the peak is or it shows a duplicate and an over-split as
+        # the same picture. Refractory dip vs coincident excess is then
+        # readable too.
+        if counts.size and counts.max() > 0:
+            ml = float(centers[int(np.argmax(counts))])
+            a_ccg.axvline(ml, color=C_FIRE, lw=0.8, ls=':')
+            flank = counts[(np.abs(centers) > 5) & (np.abs(centers) <= 20)]
+            ctr = counts[np.abs(centers) <= 1.0]
+            ratio = (ctr.mean() / max(flank.mean(), 1)) if flank.size and ctr.size else float('nan')
+            word = ('refractory dip' if ratio < 0.3
+                    else 'coincident excess' if ratio > 1.5 else 'flat')
+            a_ccg.text(.97, .97, f'peak {ml:+.2f} ms\n{word}',
+                       transform=a_ccg.transAxes, fontsize=5, ha='right',
+                       va='top', color=C_QUIET)
         tag(a_ccg, f"vs clu {primary['clu_id']} ({primary['role']})", pcol, .97)
     elif st.size > 2:
         centers, counts = compute_ccg(st * FS, st * FS,
