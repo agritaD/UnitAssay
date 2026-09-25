@@ -434,3 +434,69 @@ def presence_contrast(times, duration_s=None, bin_s=30.0):
     hi = counts[active].mean() if active.any() else 0.0
     lo = counts[~active].mean() if (~active).any() else 0.0
     return float(silent_frac), float(hi / max(lo, 0.5))
+
+
+# ---------------------------------------------------------------------------
+# PANEL A: the sieve.
+#
+# Layer 2 is a sieve, and only one rule is a real gate. Ten of the eleven
+# sub-rules can only reject; rule 5a is the only one that both passes and
+# fails. Everything else either peels a cluster off or lets it fall through to
+# rule 7, "all rules passed".
+#
+# The stations are in FLOW order, which is not the order the legacy ids were
+# assigned in -- those number the order the problems were found.
+
+SIEVE_ORDER = ('1', '2', '3a', '3b', '4a', '4b', '5a', '5b', '5c', '5d',
+               '6', '7', '8')
+SIEVE_NAME = {
+    '1': 'already counted\nunder another cluster',
+    '2': 'refractory ratio',
+    '3a': 'two populations\ninside it',
+    '3b': 'time-ordered split',
+    '4a': 'not separable from\nits reference channel',
+    '4b': 'evidence incomplete',
+    '5a': 'separable from\nits neighbours',
+    '5b': 'coincidence excess',
+    '5c': 'refractory deficit',
+    '5d': 'evidence incomplete',
+    '6': 'no verdict',
+    '7': 'all rules passed',
+    '8': 'unattributed',
+}
+
+
+def sieve_flow(corpus_dir):
+    """Counts entering, leaving and surviving each rule, in flow order.
+
+    Asserts the parts sum to the whole: a sieve figure whose tributaries do
+    not add up to its inflow is worse than no figure.
+    """
+    corpus_dir = Path(corpus_dir)
+    fail = {r: 0 for r in SIEVE_ORDER}
+    pas = {r: 0 for r in SIEVE_ORDER}
+    n_sessions = 0
+    for path in sorted(corpus_dir.glob('*/curated.json')):
+        n_sessions += 1
+        for row in json.load(open(path))['rows']:
+            rid = str(row.get('rule_id') or rule_id(row.get('rule')))
+            if rid not in fail:
+                raise KeyError(f'rule {rid} is not placed in SIEVE_ORDER')
+            (pas if row.get('decision') == 'PASS' else fail)[rid] += 1
+
+    total = sum(fail.values()) + sum(pas.values())
+    stations, remaining = [], total
+    for r in SIEVE_ORDER:
+        f, p = fail[r], pas[r]
+        if f == 0 and p == 0:
+            stations.append(dict(rule=r, name=SIEVE_NAME[r], fail=0, pas=0,
+                                 entering=remaining, remaining=remaining,
+                                 fires=False))
+            continue
+        stations.append(dict(rule=r, name=SIEVE_NAME[r], fail=f, pas=p,
+                             entering=remaining, remaining=remaining - f - p,
+                             fires=True))
+        remaining -= f + p
+    assert remaining == 0, f'{remaining:,} clusters unaccounted for'
+    return dict(total=total, n_sessions=n_sessions, stations=stations,
+                n_pass=sum(pas.values()), n_fail=sum(fail.values()))
