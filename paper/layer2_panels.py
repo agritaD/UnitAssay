@@ -394,14 +394,25 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
     verdict = rec_row.get('ldl_verdict')
     dip_sig = _isfinite(dp) and dp < DIP_PVAL_THRESH
     split_is_real = (verdict == 'overmerged')
+    # THE SPLIT IS DRAWN ON EVERY ROW, and that is the point (Agrita). The
+    # two-group split is imposed on every cluster whether or not it has two
+    # modes; showing it only where it was adopted hides that, and leaves the
+    # reader to assume the colours appeared because the structure did. Drawn
+    # everywhere, the non-over-merge rows show the two groups sitting on top
+    # of each other -- the split exists, it just does not separate -- and the
+    # over-merge row is the one where it comes apart.
+    #
+    # What still depends on the VERDICT is the claim, never the colour: the
+    # frame highlight, and the label beside the p-value. 1,254 clusters carry
+    # dip p < 0.05 that curate did not adopt, so the panel says which.
     res = None
     if data['feats'] is not None and len(data['feats']) >= 240:
         try:
             res = overmerge_verdict(data['feats'])
         except Exception:
             res = None
-    lab = np.asarray(res['labels']) if (res and split_is_real
-                                        and res.get('labels') is not None) else None
+    lab = (np.asarray(res['labels'])
+           if (res and res.get('labels') is not None) else None)
 
     # --- within-cluster PC: ONE cluster, coloured by the split the dip
     # imposes on it. No alignment question arises -- these are all the same
@@ -413,11 +424,12 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                           color=C_UNIT, alpha=.85, linewidths=0)
             a_win.scatter(fw[lab == 1, 0], fw[lab == 1, 1], s=2.6,
                           color=C_SPLIT, alpha=.85, linewidths=0)
-            tag(a_win, 'imposed split', C_SPLIT, .97)
+            tag(a_win, 'imposed split', C_SPLIT if split_is_real else C_QUIET,
+                .97)
         else:
             a_win.scatter(fw[:, 0], fw[:, 1], s=2.6, color=C_UNIT,
                           alpha=.85, linewidths=0)
-            tag(a_win, 'one mode', C_QUIET, .97)
+            tag(a_win, 'split not computed', C_QUIET, .97)
     frame(a_win, 'within_pc')
 
     # --- 1-D projection: the axis the dip actually ran on
