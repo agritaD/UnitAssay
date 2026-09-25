@@ -203,7 +203,15 @@ def exemplar_candidates(corpus_dir, min_spikes=LOW_SPIKE_THRESHOLD,
             # relation, which is exactly why layer 1 cannot see it.
             pid, _why = rule_partner(row)
             nb = layer1_neighbours(path.parent, row.get('clu_id'))
-            same_ch = (pid is not None and pid in nb)
+            # This describes THE CLUSTER THE ROW WILL ACTUALLY DRAW, not the
+            # rule partner. Rules 4a and 8 name no partner, so the row falls
+            # back to a layer-1 neighbour -- which is same-channel by
+            # construction. Reporting False there put 'different peak channel'
+            # on a panel that also said 'same channel' three lines above it.
+            if pid is None:
+                same_ch = True if nb else None
+            else:
+                same_ch = pid in nb
             if ec != 'duplicate' and pid is not None and not same_ch:
                 continue
 
@@ -215,7 +223,7 @@ def exemplar_candidates(corpus_dir, min_spikes=LOW_SPIKE_THRESHOLD,
                 'rule_id': rid, 'rule_label': row.get('rule_label'),
                 'sub_type': row.get('sub_type'), 'decision': row.get('decision'),
                 'dip_basis': row.get('dip_basis'),
-                'partner': pid, 'partner_same_channel': bool(same_ch),
+                'partner': pid, 'drawn_partner_same_channel': same_ch,
                 'layer1_neighbours': sorted(nb),
                 'fires': fires, 'n_quiet': len(quiet),
                 'n_untested': len(untested), 'untested': untested,

@@ -234,7 +234,16 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
     # different pairs across the row.
     primary = next((o for o in others if o.get('is_partner')),
                    others[0] if others else None)
-    ocol = {o['clu_id']: C_OTHER[i % len(C_OTHER)] for i, o in enumerate(others)}
+    # COLOUR BY ROLE, NOT BY POSITION IN THE LIST. Keying off enumerate()
+    # meant the comparison cluster came out red in one row and pink in the
+    # next purely because it happened to be second in the neighbour list --
+    # the reader has no way to know that, so the colour stopped meaning
+    # anything. The cluster the row is ABOUT is always C_OTHER[0].
+    ocol = {}
+    if primary is not None:
+        ocol[primary['clu_id']] = C_OTHER[0]
+    for o in others:
+        ocol.setdefault(o['clu_id'], C_OTHER[1])
     pcol = ocol.get(primary['clu_id'], C_OTHER[0]) if primary else C_OTHER[0]
 
     def frame(ax, col):
@@ -258,7 +267,21 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         if data['noise_wf'] is not None:
             a_wf.plot(t, data['noise_wf'] / peak, color=C_REF, lw=1.1, ls='--')
         a_wf.plot(t, data['wf'] / peak, color=C_UNIT, lw=1.8)
-        a_wf.set_ylim(-1.5, 1.2)
+        # Every trace is scaled by THIS unit's peak -- that shared scale is
+        # what the printed ratio means, so it stays. But a neighbour can be
+        # several times larger, and a fixed y-limit then cropped it into a
+        # line that ran off the panel. Fit the limits to what is drawn.
+        shown = [data['wf'] / peak]
+        if data['noise_wf'] is not None:
+            shown.append(np.asarray(data['noise_wf']) / peak)
+        if primary is not None and primary.get('wf') is not None \
+                and len(primary['wf']) == len(t):
+            shown.append(np.asarray(primary['wf']) / peak)
+        allv = np.concatenate([np.asarray(v)[np.isfinite(v)] for v in shown])
+        lo, hi = float(np.min(allv)), float(np.max(allv))
+        pad = 0.10 * (hi - lo + 1e-9)
+        # headroom at the top for the three legend lines
+        a_wf.set_ylim(lo - pad, hi + pad + 0.55 * (hi - lo + 1e-9))
         y = .97
         tag(a_wf, f"clu {data['clu_id']} peak ch", C_UNIT, y); y -= .125
         if data['noise_wf'] is not None:
