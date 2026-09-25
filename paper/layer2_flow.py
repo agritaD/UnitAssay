@@ -13,6 +13,17 @@ printed inside each box with their own counts, so nothing is hidden.
 Only NEIGHBOUR can send a cluster both ways. Every other stage either rejects
 it or passes it along, which is why the exits are on one side until then.
 
+LAYER 1 IS SHOWN, because it is an input to every branch below -- but NOT as
+a gate in series. All 53,346 clusters enter layer 2 whatever layer 1 said; its
+verdict is carried alongside and is what sorts the terminus. Drawing it as a
+first gate would say that layer 2 only sees what layer 1 passed, which is the
+opposite of how the two layers work.
+
+ONE PASS OUTCOME. The 3,978 that leave at NEIGHBOUR are passes, so they end in
+the same box as the 20,561 that reach the end clean; splitting them into a
+mid-flow branch and a separate total left one of them dangling in the margin.
+Each outcome box now says what it is made of.
+
 THE RULES STOP AT NEIGHBOUR. What follows is not another test: clusters that
 survive all five reach a terminus and are sorted by what layer 1 already said
 about them -- `screen_pass` makes them CLEAN, and what nothing has claimed is
@@ -47,7 +58,7 @@ VERDICT = {'1-identity': 'duplicate', '2-refractory': 'over-split',
            '7-clean': 'clean', '8-fall-through': 'unattributed'}
 
 
-def make_decision_flow(flow, out_path, width_in=7.4, height_in=13.2):
+def make_decision_flow(flow, out_path, width_in=7.6, height_in=13.0):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -55,35 +66,46 @@ def make_decision_flow(flow, out_path, width_in=7.4, height_in=13.2):
     plt.rcParams.update({'svg.fonttype': 'none', 'pdf.fonttype': 42})
 
     by = {s['stage']: s for s in flow['stages']}
-    # the five questions; UNRESOLVED is dropped -- it never fires on this
-    # corpus, and an empty box in a decision flow reads as a step a cluster
-    # has to get past
     tests = [by[k] for k in ('1-identity', '2-refractory', '3-composition',
                              '4-contamination', '5-neighbour')]
     clean, fall = by['7-clean'], by['8-fall-through']
     total = flow['total']
+    rescued = flow['rescued']
+    attributed = flow['n_fail'] - fall['fail']
 
     fig, ax = plt.subplots(figsize=(width_in, height_in))
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
-    # Explicit vertical budget. Deriving the terminus from the tests' lower
-    # bound put the two outcome boxes on top of the NEIGHBOUR box.
-    TOP = 0.962          # first question
-    TESTS_BOT = 0.415    # last question's lower edge
-    Y_TERM = 0.300       # the two outcome boxes
-    Y_TOTAL = 0.135      # what the whole flow produced
-    top, bot = TOP, TESTS_BOT
-    step = (top - bot) / len(tests)
+    TOP = 0.905
+    TESTS_BOT = 0.415
+    Y_OUT = 0.185
+    step = (TOP - TESTS_BOT) / len(tests)
     bx, bw = 0.255, 0.40
     bh = step * 0.62
 
-    ax.text(bx + bw / 2, top + 0.026, f"{total:,} clusters", ha='center',
-            va='bottom', fontsize=11.5, weight='bold', color=INK)
-    ax.text(bx + bw / 2, top + 0.012, f"{flow['n_sessions']} sessions",
-            ha='center', va='bottom', fontsize=7.5, color=GREY)
+    # --- layer 1, which every cluster has already been through
+    ax.add_patch(FancyBboxPatch((bx - 0.02, TOP + 0.034), bw + 0.04, 0.052,
+                                boxstyle='round,pad=0.005,rounding_size=0.010',
+                                facecolor='#F4F6FA', edgecolor='#9AA3AE',
+                                lw=0.9, zorder=3))
+    ax.text(bx + bw / 2, TOP + 0.072, 'LAYER 1  (screen)', ha='center',
+            va='center', fontsize=7.6, weight='bold', color='#5B6470',
+            zorder=4)
+    ax.text(bx + bw / 2, TOP + 0.052,
+            f"{total:,} clusters  ·  passed {flow['screen_pass']:,}"
+            f"  ·  rejected {flow['screen_fail']:,}",
+            ha='center', va='center', fontsize=7.0, color=GREY, zorder=4)
+    ax.text(bx + bw / 2 + 0.014, TOP + 0.016,
+            'every cluster enters layer 2,\nwhatever layer 1 said',
+            ha='left', va='center', fontsize=6.6, style='italic',
+            color=GREY, linespacing=1.3)
+    ax.annotate('', xy=(bx + bw / 2, TOP - step * 0.5 + bh / 2),
+                xytext=(bx + bw / 2, TOP + 0.034),
+                arrowprops=dict(arrowstyle='-|>', color=C_BOX_EDGE, lw=1.1))
 
+    pass_branch_y = None
     for i, s in enumerate(tests):
-        yc = top - step * (i + 0.5)
+        yc = TOP - step * (i + 0.5)
         ax.add_patch(FancyBboxPatch((bx, yc - bh / 2), bw, bh,
                                     boxstyle='round,pad=0.006,rounding_size=0.012',
                                     facecolor=C_BOX, edgecolor=C_BOX_EDGE,
@@ -108,87 +130,59 @@ def make_decision_flow(flow, out_path, width_in=7.4, height_in=13.2):
                     f"{100 * s['fail'] / total:.1f}%  {VERDICT[s['stage']]}",
                     ha='left', va='top', fontsize=6.9, color=C_FAIL)
         if s['pas']:
+            pass_branch_y = yc
             ax.annotate('', xy=(bx - 0.072, yc), xytext=(bx, yc),
                         arrowprops=dict(arrowstyle='-|>', color=C_PASS, lw=1.3))
-            ax.text(bx - 0.086, yc + 0.006, f"PASS  {s['pas']:,}", ha='right',
+            ax.text(bx - 0.086, yc + 0.012, f"PASS  {s['pas']:,}", ha='right',
                     va='bottom', fontsize=8.6, color=C_PASS, weight='semibold')
-            ax.text(bx - 0.086, yc - 0.006, f"{100 * s['pas'] / total:.1f}%",
-                    ha='right', va='top', fontsize=6.9, color=C_PASS)
-            # It used to stop here, which left the only mid-flow PASS hanging
-            # in the margin while the total below claimed to include it. One
-            # line down the left-hand side, and the 3,978 visibly joins the
-            # 24,539.
-            px = bx - 0.215
-            ax.plot([bx - 0.072, px], [yc, yc], color=C_PASS, lw=1.0,
-                    alpha=.55, zorder=1)
-            ax.plot([px, px], [yc, Y_TOTAL + 0.052], color=C_PASS, lw=1.0,
-                    alpha=.55, zorder=1)
-            ax.annotate('', xy=(bx + bw / 2 - 0.185 - 0.055, Y_TOTAL + 0.052),
-                        xytext=(px, Y_TOTAL + 0.052),
-                        arrowprops=dict(arrowstyle='-|>', color=C_PASS,
-                                        lw=1.1, alpha=.7))
+            ax.text(bx - 0.086, yc - 0.001, 'all rejected by layer 1',
+                    ha='right', va='top', fontsize=6.6, color=C_PASS,
+                    alpha=.9, style='italic')
 
-        nxt = (yc - step) + bh / 2 if i < len(tests) - 1 else Y_TERM + 0.085
+        nxt = (yc - step) + bh / 2 if i < len(tests) - 1 else Y_OUT + 0.085
         ax.annotate('', xy=(bx + bw / 2, nxt), xytext=(bx + bw / 2, yc - bh / 2),
                     arrowprops=dict(arrowstyle='-|>', color=C_BOX_EDGE, lw=1.1))
         ax.text(bx + bw / 2 + 0.012, (yc - bh / 2 + nxt) / 2,
                 f"{s['remaining']:,}", ha='left', va='center', fontsize=7,
                 color=GREY)
+    ax.text(bx + bw / 2 + 0.012, Y_OUT + 0.100, 'the rules stop here',
+            ha='left', va='bottom', fontsize=7.2, style='italic', color=GREY)
 
-    # --- the terminus. Not a test: what survived all five is sorted by what
-    #     layer 1 already said, so these two are siblings, not a sequence.
-    ty = Y_TERM
-    ax.text(bx + bw / 2 + 0.014, Y_TERM + 0.098, 'the rules stop here',
-            ha='left', va='bottom', fontsize=7.4, style='italic', color=GREY)
-    for (s, col, side, verdict) in ((clean, C_PASS, -1, 'PASS'),
-                                    (fall, C_FAIL, +1, 'FAIL')):
-        cx = bx + bw / 2 + side * 0.185
-        ax.add_patch(FancyBboxPatch((cx - 0.166, ty - 0.068), 0.332, 0.124,
-                                    boxstyle='round,pad=0.005,rounding_size=0.012',
-                                    facecolor='white', edgecolor=col, lw=1.1,
+    # --- two outcomes, and they ARE the totals
+    for (col, side, verdict, n, parts) in (
+            (C_PASS, -1, 'PASS', flow['n_pass'],
+             f"clean {clean['pas']:,}\nrescued at neighbour {rescued:,}"),
+            (C_FAIL, +1, 'FAIL', flow['n_fail'],
+             f"a rule named the fault {attributed:,}\n"
+             f"no rule could explain it {fall['fail']:,}")):
+        cx = bx + bw / 2 + side * 0.195
+        ax.add_patch(FancyBboxPatch((cx - 0.170, Y_OUT - 0.060), 0.340, 0.118,
+                                    boxstyle='round,pad=0.006,rounding_size=0.012',
+                                    facecolor='white', edgecolor=col, lw=1.3,
                                     zorder=3))
-        ax.annotate('', xy=(cx, ty + 0.058), xytext=(bx + bw / 2, Y_TERM + 0.085),
+        ax.text(cx, Y_OUT + 0.036, f'{verdict}  {n:,}', ha='center',
+                va='center', fontsize=11.5, weight='bold', color=col, zorder=4)
+        ax.text(cx, Y_OUT + 0.014, f'{100 * n / total:.1f}% of clusters',
+                ha='center', va='center', fontsize=7.2, color=GREY, zorder=4)
+        ax.text(cx, Y_OUT - 0.024, parts, ha='center', va='center',
+                fontsize=7.0, color=col, alpha=.9, linespacing=1.5, zorder=4)
+        ax.annotate('', xy=(cx, Y_OUT + 0.058),
+                    xytext=(bx + bw / 2, Y_OUT + 0.085),
                     arrowprops=dict(arrowstyle='-|>', color=col, lw=1.2,
-                                    connectionstyle='arc3,rad=%.2f' % (0.12 * side)))
-        n = s['pas'] or s['fail']
-        ax.text(cx, ty + 0.036, s['label'].upper(), ha='center', va='center',
-                fontsize=7.6, weight='bold', color=col, zorder=4)
-        ax.text(cx, ty + 0.012, f'{verdict}  {n:,}', ha='center', va='center',
-                fontsize=8.8, weight='semibold', color=col, zorder=4)
-        ax.text(cx, ty - 0.018, SHORT_Q[s['stage']], ha='center',
-                va='center', fontsize=6.9, color=GREY, zorder=4,
-                linespacing=1.3)
-        # WHAT IS ACTUALLY IN THE BUCKET. 'Nothing claimed it' is accurate and
-        # says nothing: a reader cannot tell how this differs from the four
-        # attributed failures above. Every one of these 726 has
-        # screen_pass=False, so layer 1 objected and layer 2 could not explain
-        # the objection -- and 102 of them are the intermittent-presence class
-        # layer 2 has no rule for, which is why a row of this figure is drawn
-        # from here.
-        comp = s.get('composition')
-        if comp:
-            ax.text(cx, ty - 0.050, comp, ha='center', va='center',
-                    fontsize=5.9, color=col, alpha=.85, zorder=4)
+                                    connectionstyle='arc3,rad=%.2f' % (0.14 * side)))
 
-    # --- what the whole flow produced. ONE ARROW PER BOX, not a rail
-    #     collecting every exit: rails drawn from all five FAIL exits crossed
-    #     the labels and buried the flow they were meant to clarify.
-    fy = Y_TOTAL
-    for (s_, col, side) in ((clean, C_PASS, -1), (fall, C_FAIL, +1)):
-        cx = bx + bw / 2 + side * 0.185
-        ax.annotate('', xy=(cx, fy + 0.046), xytext=(cx, Y_TERM - 0.070),
-                    arrowprops=dict(arrowstyle='-|>', color=col, lw=1.2))
-    ax.plot([0.10, 0.90], [fy + 0.048, fy + 0.048], color='#D8DCE6', lw=0.8)
-    ax.text(bx + bw / 2 - 0.185, fy, f"PASS  {flow['n_pass']:,}", ha='center',
-            va='center', fontsize=11, weight='bold', color=C_PASS)
-    ax.text(bx + bw / 2 - 0.185, fy - 0.030,
-            f"{100 * flow['n_pass'] / total:.1f}% of clusters", ha='center',
-            va='center', fontsize=7.2, color=GREY)
-    ax.text(bx + bw / 2 + 0.185, fy, f"FAIL  {flow['n_fail']:,}", ha='center',
-            va='center', fontsize=11, weight='bold', color=C_FAIL)
-    ax.text(bx + bw / 2 + 0.185, fy - 0.030,
-            f"{100 * flow['n_fail'] / total:.1f}% of clusters", ha='center',
-            va='center', fontsize=7.2, color=GREY)
+    # the mid-flow PASS joins the SAME box -- one pass outcome, not two
+    if pass_branch_y is not None:
+        px = bx - 0.245
+        cx_pass = bx + bw / 2 - 0.195
+        ax.plot([bx - 0.072, px], [pass_branch_y, pass_branch_y],
+                color=C_PASS, lw=1.1, alpha=.6, zorder=1)
+        ax.plot([px, px], [pass_branch_y, Y_OUT + 0.028], color=C_PASS,
+                lw=1.1, alpha=.6, zorder=1)
+        ax.annotate('', xy=(cx_pass - 0.170, Y_OUT + 0.028),
+                    xytext=(px, Y_OUT + 0.028),
+                    arrowprops=dict(arrowstyle='-|>', color=C_PASS, lw=1.2,
+                                    alpha=.8))
 
     ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis('off')
     out_path = str(out_path)

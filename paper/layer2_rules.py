@@ -515,6 +515,13 @@ def decision_flow_counts(corpus_dir):
     corpus_dir = Path(corpus_dir)
     fail, pas = {}, {}
     subs, classes = {}, {}
+    # LAYER 1'S VERDICT IS AN INPUT TO THIS FLOW. Every cluster arrives
+    # already screened, and the terminal buckets are defined by that verdict
+    # -- CLEAN is screen_pass=True with nothing found, FALL-THROUGH is
+    # screen_pass=False with nothing explained. Counting it here lets the
+    # figure say what it is working on.
+    screen = {True: 0, False: 0}
+    rescued = 0
     n_sessions = 0
     for path in sorted(corpus_dir.glob('*/curated.json')):
         n_sessions += 1
@@ -529,6 +536,10 @@ def decision_flow_counts(corpus_dir):
             subs[stg][rid] = subs[stg].get(rid, 0) + 1
             # what a terminal bucket is MADE OF -- the figure has to say how
             # fall-through differs from an attributed failure
+            sp_ = bool(row.get('screen_pass'))
+            screen[sp_] += 1
+            if row.get('decision') == 'PASS' and not sp_:
+                rescued += 1
             ecl = row.get('error_class') or 'unclassified'
             classes.setdefault(stg, {})
             classes[stg][ecl] = classes[stg].get(ecl, 0) + 1
@@ -553,4 +564,6 @@ def decision_flow_counts(corpus_dir):
         remaining -= f + p
     assert remaining == 0, f'{remaining:,} clusters unaccounted for'
     return dict(total=total, n_sessions=n_sessions, stages=out,
-                n_pass=sum(pas.values()), n_fail=sum(fail.values()))
+                n_pass=sum(pas.values()), n_fail=sum(fail.values()),
+                screen_pass=screen[True], screen_fail=screen[False],
+                rescued=rescued)
