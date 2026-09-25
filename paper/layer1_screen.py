@@ -647,3 +647,179 @@ def make_dominance_panel(dom, out_svg):
                  fontsize=SZ['tick'], color=style.C['neutral'])
     _save(fig, out_svg)
     return out_svg
+
+
+def pass_rates_by_label(corpus, n_lratio_sessions=None,
+                        l_grid=(0.1, 0.2, 0.4), t_grid=(0.3, 0.6, 0.9)):
+    """Old manuscript Figure 5C/5D on the full corpus: how many clusters clear
+    each threshold, split by the sorter's own label.
+
+    Splitting by KS4's label is the point. If a criterion passed `good` and
+    `mua` clusters at the same rate it would be measuring nothing the sorter
+    had not already decided; the gap between the two is the evidence that it
+    sees something else.
+
+    L-RATIO SWEEP (5C) holds stability at its shipped value and moves the
+    L-ratio cut, applying the SHIPPED criterion -- the max across the noise arm
+    and every flagged neighbour, per frame. STABILITY SWEEP (5D) does the
+    reverse, and is exact and free: `clean_frac_when_present` is the fraction
+    of frames that cleared the L-ratio at its shipped value.
+
+    Returns per-session percentages, so the panel can show the spread the way
+    the original did.
+    """
+    import h5py
+    from unitassay.screen.curation.auto_curate import _compute_l_ratio
+
+    corpus = Path(corpus)
+    out = {'l_grid': list(l_grid), 't_grid': list(t_grid),
+           'lratio': {g: {'all': [], 'good': [], 'mua': []} for g in l_grid},
+           'stability': {t: {'all': [], 'good': [], 'mua': []} for t in t_grid},
+           'shipped': dict(l_ratio=SHIPPED_L_RATIO, t_ratio=SHIPPED_T_RATIO),
+           'n_sessions_lratio': 0, 'n_sessions_stability': 0}
+
+    def ks_labels(ks_dir):
+        f = Path(ks_dir) / 'cluster_KSLabel.tsv'
+        lab = {}
+        if f.exists():
+            for ln in f.read_text().splitlines()[1:]:
+                b = ln.split('\t')
+                if len(b) >= 2:
+                    lab[int(b[0])] = b[1].strip().lower()
+        return lab
+
+    files = sorted(corpus.glob('*/curated.json'))
+    for p in files:
+        j = json.loads(p.read_text())
+        lab = ks_labels(j['ks_dir'])
+        rows = j['rows']
+        groups = {'all': rows,
+                  'good': [r for r in rows if lab.get(r['clu_id']) == 'good'],
+                  'mua': [r for r in rows if lab.get(r['clu_id']) == 'mua']}
+        ok = False
+        for t in t_grid:
+            for g, rs in groups.items():
+                v = [r.get('clean_frac_when_present') for r in rs]
+                v = [x for x in v if x is not None]
+                if v:
+                    out['stability'][t][g].append(100 * np.mean(np.asarray(v) >= t))
+                    ok = True
+        out['n_sessions_stability'] += ok
+
+    todo = files if n_lratio_sessions is None else files[:n_lratio_sessions]
+    for p in todo:
+        j = json.loads(p.read_text())
+        lab = ks_labels(j['ks_dir'])
+        per = {}
+        for h5p in sorted((p.parent / 'isolation').glob('*.SortData.h5')):
+            try:
+                clu = int(h5p.name.split('.')[0])
+                with h5py.File(h5p, 'r') as g:
+                    rows_ = []
+                    for nm in sorted(k for k in g if k.startswith('frame_')):
+                        fr = g[nm]
+                        u = np.asarray(fr['unit']) if 'unit' in fr else None
+                        nz = np.asarray(fr['noise']) if 'noise' in fr else None
+                        if u is None or nz is None or not u.size or not nz.size:
+                            rows_.append(np.nan)
+                            continue
+                        vals = [_compute_l_ratio(u[:, :3], nz[:, :3])]
+                        oth = fr.get('other')
+                        if oth is not None:
+                            items = ([oth[k] for k in oth] if hasattr(oth, 'keys')
+                                     else list(np.asarray(oth)))
+                            for o in items:
+                                o = np.asarray(o)
+                                if o.ndim == 2 and o.shape[0]:
+                                    vals.append(_compute_l_ratio(u[:, :3], o[:, :3]))
+                        rows_.append(max(vals))
+                    lr = np.asarray(rows_, float)
+            except Exception:
+                continue
+            m = ~np.isnan(lr)
+            if m.any():
+                per[clu] = lr[m]
+        if not per:
+            continue
+        out['n_sessions_lratio'] += 1
+        for gl in l_grid:
+            for g, sel in (('all', lambda c: True),
+                           ('good', lambda c: lab.get(c) == 'good'),
+                           ('mua', lambda c: lab.get(c) == 'mua')):
+                v = [np.mean(lr < gl) >= SHIPPED_T_RATIO
+                     for c, lr in per.items() if sel(c)]
+                if v:
+                    out['lratio'][gl][g].append(100 * float(np.mean(v)))
+    return out
+
+
+def make_pass_rate_panel(pr, out_svg):
+    """Panel D: old manuscript Figure 5C/5D -- how many clusters clear each
+    threshold, split by the sorter's own label.
+
+    ONE COLOUR SET FOR BOTH HALVES. The original used different colours for
+    All/Good/MUA in 5C and 5D, so the same group changed colour between two
+    adjacent panels.
+    """
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import numpy as _np
+    from matplotlib.patches import Patch
+    from . import style
+    style.apply()
+    SZ = style.SZ
+    COL = {'all': '#C2185B', 'good': '#4FC3F7', 'mua': '#FBC02D'}
+    NAME = {'all': 'All', 'good': 'KS4 good', 'mua': 'KS4 mua'}
+
+    fig, (a, b) = plt.subplots(1, 2, figsize=(style.W_IN * 0.62, 2.05),
+                               gridspec_kw=dict(wspace=0.34, left=0.095,
+                                                right=0.99, top=0.84,
+                                                bottom=0.22))
+    rng = _np.random.default_rng(0)
+
+    def draw(ax, table, keys, fmt, xlabel, title, shipped):
+        for i, k in enumerate(keys):
+            for j, g in enumerate(('all', 'good', 'mua')):
+                v = _np.asarray(table[k][g], float)
+                v = v[_np.isfinite(v)]
+                if not v.size:
+                    continue
+                x = i + (j - 1) * 0.26
+                bp = ax.boxplot([v], positions=[x], widths=0.18,
+                                patch_artist=True, showfliers=False,
+                                medianprops=dict(color='k', lw=0.7),
+                                whiskerprops=dict(lw=0.5),
+                                capprops=dict(lw=0.5))
+                for box in bp['boxes']:
+                    box.set(facecolor='white', edgecolor='k', linewidth=0.5)
+                ax.scatter(x + rng.uniform(-0.065, 0.065, v.size), v, s=1.6,
+                           color=COL[g], alpha=0.7, linewidths=0, zorder=3)
+            if k == shipped:
+                ax.axvspan(i - 0.42, i + 0.42, color='#F2F4F7', zorder=0)
+        ax.set_xticks(range(len(keys)))
+        ax.set_xticklabels([fmt(k) for k in keys], fontsize=SZ['tick'])
+        ax.set_xlim(-0.5, len(keys) - 0.5); ax.set_ylim(-4, 104)
+        ax.set_xlabel(xlabel); ax.set_ylabel('Percentage of clusters (%)')
+        for sp in ax.spines.values():
+            sp.set_visible(True); sp.set_linewidth(0.6)
+        ax.set_title(title, loc='left', fontsize=SZ['sub'])
+
+    draw(a, pr['lratio'], pr['l_grid'], lambda k: f'≤ {k}',
+         'L-ratio threshold', 'Isolation by L-ratio',
+         pr['shipped']['l_ratio'])
+    draw(b, pr['stability'], pr['t_grid'], lambda k: f'≥ {k:.0%}',
+         'Stability level', 'Isolation stability',
+         pr['shipped']['t_ratio'])
+    a.legend(handles=[Patch(facecolor=COL[g], edgecolor='k', linewidth=0.5,
+                            label=NAME[g]) for g in ('all', 'good', 'mua')],
+             loc='lower left', bbox_to_anchor=(0.02, 0.02), fontsize=SZ['tick'],
+             frameon=True, handlelength=1.1, borderpad=0.3, labelspacing=0.25)
+    a.text(0.98, 0.04, f"{pr['n_sessions_lratio']} sessions",
+           transform=a.transAxes, ha='right', va='bottom',
+           fontsize=SZ['tick'], color=style.C['neutral'])
+    b.text(0.98, 0.04, f"{pr['n_sessions_stability']} sessions",
+           transform=b.transAxes, ha='right', va='bottom',
+           fontsize=SZ['tick'], color=style.C['neutral'])
+    _save(fig, out_svg)
+    return out_svg
