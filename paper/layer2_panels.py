@@ -356,8 +356,8 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         hot = (col == fired)
         if hot:
             ax.set_facecolor(C_WASH)
-        for side, sp_ in ax.spines.items():
-            sp_.set_visible(side in ('left', 'bottom') or hot)
+        for sp_ in ax.spines.values():
+            sp_.set_visible(True)            # full box on every subpanel
             sp_.set_linewidth(1.1 if hot else 0.6)
             sp_.set_color(C_FRAME if hot else '#C7CCD4')
 
@@ -584,6 +584,20 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         mx, my = _running(st / 60, data['amps'])
         if mx is not None:
             a_amp.plot(mx, my, color=L_UNIT, lw=1.8)
+    # SAY THE DURATION, do not leave it to be read off the ticks. These six
+    # recordings run 4.3 to 36.5 minutes, so two panels that look alike are
+    # not alike -- the x-axis is a different length in every row.
+    # from the DATA, not from get_xlim(): the axis carries matplotlib's 5%
+    # margin, which printed 15.0 minutes as 16 and 36.5 as 38
+    _ends = [float(st.max())] if st.size else []
+    if primary is not None and primary.get('times') is not None \
+            and len(primary['times']):
+        _ends.append(float(np.max(primary['times'])))
+    _tmax = (max(_ends) / 60.0) if _ends else 0.0
+    if _tmax > 0:
+        a_amp.text(.97, .97, f'{_tmax:.1f} min recording',
+                   transform=a_amp.transAxes, fontsize=5, ha='right',
+                   va='top', color=C_QUIET)
     af = rec_row.get('absent_frame_frac')
     if _isfinite(af) and af > 0:
         tag(a_amp, f'absent {af:.0%}',
@@ -600,16 +614,20 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         centers, counts = compute_ccg(st * FS, primary['times'] * FS,
                                       window_ms=CCG_WINDOW_MS,
                                       bin_ms=CCG_BIN_MS, fs=FS)
-        # WIDER BARS. The gate's 0.5 ms bins give 100 spikes of noise across
-        # the window, in which an empty centre is invisible; paired into 1 ms
-        # bins the silhouette reads, and a re-detection's lag is still
-        # resolved. The gate's own resolution is unchanged -- the modal lag
-        # printed below is measured on the 0.5 ms bins.
-        centers, counts = _rebin(centers, counts, 4)      # 0.5 -> 2 ms bins
-        a_ccg.bar(centers, counts, width=(centers[1] - centers[0]) * 0.92,
-                  color=C_HIST, lw=0, alpha=.95)
+        # THE TESTED BINS ARE DRAWN IN RED, at 1 ms. Coarsening to 2 ms made
+        # the silhouette calmer but threw the detail away, and a shaded band
+        # behind grey bars still left the reader measuring heights by eye.
+        # Colouring the +-1 ms bins themselves puts the comparison in the
+        # data: on a refractory dip the red bars are the shortest in the
+        # panel, on a re-detection the red bar is the tallest thing in the row.
+        centers, counts = _rebin(centers, counts, 2)      # 0.5 -> 1 ms bins
+        _w = (centers[1] - centers[0]) * 0.94
+        _hot = np.abs(centers) <= 1.0
+        a_ccg.bar(centers[~_hot], counts[~_hot], width=_w, color=C_HIST,
+                  lw=0, alpha=.95)
+        a_ccg.bar(centers[_hot], counts[_hot], width=_w, color=C_REFRAC,
+                  lw=0, alpha=.95)
         a_ccg.set_ylim(0, max(1.0, float(counts.max()) * 1.22))
-        a_ccg.axvspan(-1, 1, color=C_REFRAC, alpha=.18, lw=0)
         # DRAW THE LEVEL THE CENTRE IS JUDGED AGAINST. The statistic compares
         # the +-1 ms window with the 5-20 ms flanks, and at three counts a bin
         # an empty centre is invisible against a noisy silhouette -- the dip
@@ -657,24 +675,32 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
                 else:
                     word = 'coincident excess' if ratio > 1.5 else 'flat'
                     note = f'peak {ml:+.2f} ms\n{word}'
-            a_ccg.text(.97, .97, note, transform=a_ccg.transAxes, fontsize=5,
-                       ha='right', va='top', color=C_QUIET)
-        tag(a_ccg, f"vs clu {primary['clu_id']} ({primary['role']})", pcol, .97)
+            a_ccg.text(.97, .845, note, transform=a_ccg.transAxes,
+                       fontsize=5, ha='right', va='top', color=C_QUIET)
+        _short = {'same channel': 'same ch', 'counted under': 'counted under',
+                  'overlapping': 'overlap', 'accuser': 'accuser'}
+        tag(a_ccg, f"vs clu {primary['clu_id']}  "
+            f"{_short.get(primary['role'], primary['role'])}", pcol, .97,
+            size=5)
     elif st.size > 2:
         centers, counts = compute_ccg(st * FS, st * FS,
                                       window_ms=CCG_WINDOW_MS,
                                       bin_ms=CCG_BIN_MS, fs=FS)
-        # WIDER BARS. The gate's 0.5 ms bins give 100 spikes of noise across
-        # the window, in which an empty centre is invisible; paired into 1 ms
-        # bins the silhouette reads, and a re-detection's lag is still
-        # resolved. The gate's own resolution is unchanged -- the modal lag
-        # printed below is measured on the 0.5 ms bins.
-        centers, counts = _rebin(centers, counts, 4)      # 0.5 -> 2 ms bins
-        a_ccg.bar(centers, counts, width=(centers[1] - centers[0]) * 0.92,
-                  color=C_HIST, lw=0, alpha=.95)
+        # THE TESTED BINS ARE DRAWN IN RED, at 1 ms. Coarsening to 2 ms made
+        # the silhouette calmer but threw the detail away, and a shaded band
+        # behind grey bars still left the reader measuring heights by eye.
+        # Colouring the +-1 ms bins themselves puts the comparison in the
+        # data: on a refractory dip the red bars are the shortest in the
+        # panel, on a re-detection the red bar is the tallest thing in the row.
+        centers, counts = _rebin(centers, counts, 2)      # 0.5 -> 1 ms bins
+        _w = (centers[1] - centers[0]) * 0.94
+        _hot = np.abs(centers) <= 1.0
+        a_ccg.bar(centers[~_hot], counts[~_hot], width=_w, color=C_HIST,
+                  lw=0, alpha=.95)
+        a_ccg.bar(centers[_hot], counts[_hot], width=_w, color=C_REFRAC,
+                  lw=0, alpha=.95)
         a_ccg.set_ylim(0, max(1.0, float(counts.max()) * 1.22))
-        a_ccg.axvspan(-1, 1, color=C_REFRAC, alpha=.18, lw=0)
-        tag(a_ccg, 'autocorrelogram (no neighbour)', C_QUIET, .97)
+        tag(a_ccg, 'autocorrelogram', C_QUIET, .97, size=5)
     frame(a_ccg, 'ccg')
 
     for ax in axes:
