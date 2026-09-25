@@ -58,7 +58,7 @@ VERDICT = {'1-identity': 'duplicate', '2-refractory': 'over-split',
            '7-clean': 'clean', '8-fall-through': 'unattributed'}
 
 
-def make_decision_flow(flow, out_path, width_in=7.6, height_in=13.0):
+def make_decision_flow(flow, out_path, width_in=7.6, height_in=10.2):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -77,8 +77,8 @@ def make_decision_flow(flow, out_path, width_in=7.6, height_in=13.0):
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
     TOP = 0.905
-    TESTS_BOT = 0.415
-    Y_OUT = 0.185
+    TESTS_BOT = 0.375
+    Y_OUT = 0.135
     step = (TOP - TESTS_BOT) / len(tests)
     bx, bw = 0.255, 0.40
     bh = step * 0.62
@@ -103,7 +103,6 @@ def make_decision_flow(flow, out_path, width_in=7.6, height_in=13.0):
                 xytext=(bx + bw / 2, TOP + 0.034),
                 arrowprops=dict(arrowstyle='-|>', color=C_BOX_EDGE, lw=1.1))
 
-    pass_branch_y = None
     for i, s in enumerate(tests):
         yc = TOP - step * (i + 0.5)
         ax.add_patch(FancyBboxPatch((bx, yc - bh / 2), bw, bh,
@@ -129,34 +128,32 @@ def make_decision_flow(flow, out_path, width_in=7.6, height_in=13.0):
             ax.text(bx + bw + 0.086, yc - 0.006,
                     f"{100 * s['fail'] / total:.1f}%  {VERDICT[s['stage']]}",
                     ha='left', va='top', fontsize=6.9, color=C_FAIL)
-        if s['pas']:
-            pass_branch_y = yc
-            ax.annotate('', xy=(bx - 0.072, yc), xytext=(bx, yc),
-                        arrowprops=dict(arrowstyle='-|>', color=C_PASS, lw=1.3))
-            ax.text(bx - 0.086, yc + 0.012, f"PASS  {s['pas']:,}", ha='right',
-                    va='bottom', fontsize=8.6, color=C_PASS, weight='semibold')
-            ax.text(bx - 0.086, yc - 0.001, 'all rejected by layer 1',
-                    ha='right', va='top', fontsize=6.6, color=C_PASS,
-                    alpha=.9, style='italic')
-
         nxt = (yc - step) + bh / 2 if i < len(tests) - 1 else Y_OUT + 0.085
         ax.annotate('', xy=(bx + bw / 2, nxt), xytext=(bx + bw / 2, yc - bh / 2),
                     arrowprops=dict(arrowstyle='-|>', color=C_BOX_EDGE, lw=1.1))
+        # ENTERING MINUS REJECTED, not minus everything that left. The only
+        # rule that also passes is NEIGHBOUR, and its 3,978 are carried down
+        # to the single PASS outcome instead of branching off in the margin --
+        # Agrita: one pass, at the end. So the number on the arrow is what no
+        # rule has rejected, and at NEIGHBOUR that is 25,265, which is
+        # 20,561 clean + 3,978 passed there + 726 nothing could explain.
         ax.text(bx + bw / 2 + 0.012, (yc - bh / 2 + nxt) / 2,
-                f"{s['remaining']:,}", ha='left', va='center', fontsize=7,
-                color=GREY)
+                f"{s['entering'] - s['fail']:,}", ha='left', va='center',
+                fontsize=7, color=GREY)
     ax.text(bx + bw / 2 + 0.012, Y_OUT + 0.100, 'the rules stop here',
             ha='left', va='bottom', fontsize=7.2, style='italic', color=GREY)
 
     # --- two outcomes, and they ARE the totals
     for (col, side, verdict, n, parts) in (
             (C_PASS, -1, 'PASS', flow['n_pass'],
-             f"clean {clean['pas']:,}\nrescued at neighbour {rescued:,}"),
+             f"clean {clean['pas']:,}\npassed at NEIGHBOUR {rescued:,}\n"
+             f"(every one rejected by layer 1)"),
             (C_FAIL, +1, 'FAIL', flow['n_fail'],
              f"a rule named the fault {attributed:,}\n"
-             f"no rule could explain it {fall['fail']:,}")):
+             f"no rule could explain it {fall['fail']:,}\n"
+             f"(layer 1 had rejected those)")):
         cx = bx + bw / 2 + side * 0.195
-        ax.add_patch(FancyBboxPatch((cx - 0.170, Y_OUT - 0.060), 0.340, 0.118,
+        ax.add_patch(FancyBboxPatch((cx - 0.176, Y_OUT - 0.082), 0.352, 0.146,
                                     boxstyle='round,pad=0.006,rounding_size=0.012',
                                     facecolor='white', edgecolor=col, lw=1.3,
                                     zorder=3))
@@ -164,25 +161,12 @@ def make_decision_flow(flow, out_path, width_in=7.6, height_in=13.0):
                 va='center', fontsize=11.5, weight='bold', color=col, zorder=4)
         ax.text(cx, Y_OUT + 0.014, f'{100 * n / total:.1f}% of clusters',
                 ha='center', va='center', fontsize=7.2, color=GREY, zorder=4)
-        ax.text(cx, Y_OUT - 0.024, parts, ha='center', va='center',
+        ax.text(cx, Y_OUT - 0.038, parts, ha='center', va='center',
                 fontsize=7.0, color=col, alpha=.9, linespacing=1.5, zorder=4)
-        ax.annotate('', xy=(cx, Y_OUT + 0.058),
+        ax.annotate('', xy=(cx, Y_OUT + 0.064),
                     xytext=(bx + bw / 2, Y_OUT + 0.085),
                     arrowprops=dict(arrowstyle='-|>', color=col, lw=1.2,
                                     connectionstyle='arc3,rad=%.2f' % (0.14 * side)))
-
-    # the mid-flow PASS joins the SAME box -- one pass outcome, not two
-    if pass_branch_y is not None:
-        px = bx - 0.245
-        cx_pass = bx + bw / 2 - 0.195
-        ax.plot([bx - 0.072, px], [pass_branch_y, pass_branch_y],
-                color=C_PASS, lw=1.1, alpha=.6, zorder=1)
-        ax.plot([px, px], [pass_branch_y, Y_OUT + 0.028], color=C_PASS,
-                lw=1.1, alpha=.6, zorder=1)
-        ax.annotate('', xy=(cx_pass - 0.170, Y_OUT + 0.028),
-                    xytext=(px, Y_OUT + 0.028),
-                    arrowprops=dict(arrowstyle='-|>', color=C_PASS, lw=1.2,
-                                    alpha=.8))
 
     ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis('off')
     out_path = str(out_path)
