@@ -41,20 +41,38 @@ C_DEAD = '#C7CCD4'
 INK = '#111418'
 GREY = '#5B6470'
 
+# FULL SENTENCES, each naming its subject. 'Are there two populations inside
+# it?' leaves the reader to carry 'it' down from the box above; a question in
+# a figure has to stand on its own, because a reader arriving at the third box
+# has no guarantee of having read the first. These are display wordings of
+# STAGE_QUESTION -- the meaning is the code's, the phrasing is the figure's.
+# FULL SENTENCES, EACH NAMING ITS SUBJECT, ALL FAIL-POSITIVE.
+#
+# Two problems with the first wording. 'Are there two populations inside it?'
+# made the reader carry 'it' down from the box above, and a question in a
+# figure has to stand alone -- nobody is guaranteed to read the boxes in order.
+#
+# And the polarity alternated: YES meant FAIL at IDENTITY and COMPOSITION, NO
+# meant FAIL at REFRACTORY and NEIGHBOUR. Every question is now phrased so that
+# YES is the fault, so the right-hand exit always answers the same way and the
+# reader learns the shape of the figure once.
+#
+# These are display wordings of STAGE_QUESTION: the meaning is the code's, the
+# phrasing is the figure's.
 SHORT_Q = {
-    '1-identity': 'Are these spikes already\ncounted under another cluster?',
-    '2-refractory': 'Could one neuron\nproduce these spikes?',
-    '3-composition': 'Are there two populations\ninside it?',
-    '4-contamination': 'Is it polluted by something\nthis cluster alone can see?',
-    '5-neighbour': 'Is it separable from the\nneighbours it is tested against?',
-    '6-unresolved': 'Could it be tested at all?',
-    '7-clean': 'No rule found anything,\nand layer 1 passed it.',
-    '8-fall-through': 'No rule explains it,\nbut layer 1 rejected it.',
+    '1-identity': 'Are these spikes already counted\nunder another cluster?',
+    '2-refractory': 'Do these spikes violate\nthe refractory period?',
+    '3-composition': 'Are there two populations\nwithin the cluster?',
+    '4-contamination': 'Is the cluster polluted by noise\non its reference channel?',
+    '5-neighbour': 'Does the cluster overlap a\nneighbour on the same channel?',
+    '6-unresolved': 'Could the cluster be tested at all?',
+    '7-clean': 'No rule found a fault,\nand layer 1 passed the cluster.',
+    '8-fall-through': 'No rule could explain it,\nbut layer 1 rejected the cluster.',
 }
+
 # WHAT EACH STAGE MEASURES. Agrita asked which metric decides identity; the
 # boxes named their rule ids and never said. Each of these is the statistic the
-# rule actually reads, with its shipped threshold, so the figure answers the
-# question a reader will have at every box.
+# rule actually reads, with its shipped threshold.
 METRIC = {
     '1-identity': 'overlap > 50%  AND  |modal lag| > 0.2 ms',
     '2-refractory': 'ISI violation ratio, burst-corrected',
