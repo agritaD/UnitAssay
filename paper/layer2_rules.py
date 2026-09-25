@@ -23,8 +23,9 @@ tested come first, and `n_untested` is reported for every candidate.
 """
 import json
 import math
-from collections import defaultdict
 from pathlib import Path
+
+import numpy as np
 
 from unitassay.curate.constants import (ABSENT_FRAME_FRAC_THRESH,
                                         DIP_PVAL_THRESH, LOW_SPIKE_THRESHOLD,
@@ -103,6 +104,46 @@ def column_state(row, k=1):
     return st
 
 
+def rule_partner(row):
+    """The cluster the RULE compared this one against, and why."""
+    if row.get('redundant_of') is not None:
+        return int(row['redundant_of']), 'counted under'
+    if row.get('overlap_pairs'):
+        q = row['overlap_pairs'][0]
+        # 'other' here, 'clu' in ccg_accusers -- the two schemas differ
+        pid = int(q.get('other', q.get('clu'))) if isinstance(q, dict) else int(q)
+        return pid, 'overlapping'
+    acc = [a for a in (row.get('ccg_accusers') or [])
+           if isinstance(a, dict) and a.get('z') is not None]
+    if acc:
+        return int(max(acc, key=lambda a: a['z'])['clu']), 'accuser'
+    return None, None
+
+
+def layer1_neighbours(session_dir, clu_id):
+    """The same-peak-channel clusters layer 1 referenced this one against.
+
+    other_clu is stored as 1-INDEXED ms_ids -- compute_isolation builds them
+    from `my_clus = [c + 1 ...]` and compares them against `good_clus_0 + 1`.
+    Measured on 25 sessions / 23,158 references: decrementing gives a peak
+    channel identical to the unit's 100.00% of the time, the raw value 32.3%,
+    and the raw value points a cluster at ITSELF 2,727 times.
+    """
+    import h5py
+    p = Path(session_dir) / 'isolation' / f'{clu_id + 1}.SortData.h5'
+    if not p.exists():
+        return set()
+    try:
+        with h5py.File(p, 'r') as h:
+            keys = sorted(h.keys())
+            if not keys or 'other_clu' not in h[keys[0]]:
+                return set()
+            raw = np.atleast_1d(h[keys[0]]['other_clu'][:]).astype(int)
+    except Exception:
+        return set()
+    return {int(c) - 1 for c in raw if int(c) - 1 >= 0}
+
+
 def exemplar_candidates(corpus_dir, min_spikes=LOW_SPIKE_THRESHOLD,
                         max_spikes=40000, per_row=12):
     """Candidate clusters for each row of Figure 8, best first.
@@ -150,6 +191,22 @@ def exemplar_candidates(corpus_dir, min_spikes=LOW_SPIKE_THRESHOLD,
                 continue
             fires = [want] if want else []
 
+            # CONSISTENT WITH LAYER 1 -- which is the figure's point. The
+            # cluster a rule accuses is not always one layer 1 referenced:
+            # layer 1 only ever looks at the SAME peak channel, while layer 2
+            # scans wider. Measured per class, the partner is a layer-1
+            # neighbour for clean 95.2%, over-merge 93.9%, over-split 74.5%
+            # -- but duplicates only 47.2%, with 39.6% on a DIFFERENT channel,
+            # because re-detection is spatial. So the constraint is applied
+            # everywhere EXCEPT duplicates, where forcing it would
+            # misrepresent the mechanism; that row instead labels the channel
+            # relation, which is exactly why layer 1 cannot see it.
+            pid, _why = rule_partner(row)
+            nb = layer1_neighbours(path.parent, row.get('clu_id'))
+            same_ch = (pid is not None and pid in nb)
+            if ec != 'duplicate' and pid is not None and not same_ch:
+                continue
+
             quiet = [c for c in others if st[c] == 'quiet' and c != 'waveform']
             untested = [c for c in others if st[c] == 'untested']
             out[ec].append({
@@ -158,6 +215,8 @@ def exemplar_candidates(corpus_dir, min_spikes=LOW_SPIKE_THRESHOLD,
                 'rule_id': rid, 'rule_label': row.get('rule_label'),
                 'sub_type': row.get('sub_type'), 'decision': row.get('decision'),
                 'dip_basis': row.get('dip_basis'),
+                'partner': pid, 'partner_same_channel': bool(same_ch),
+                'layer1_neighbours': sorted(nb),
                 'fires': fires, 'n_quiet': len(quiet),
                 'n_untested': len(untested), 'untested': untested,
             })

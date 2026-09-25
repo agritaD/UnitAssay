@@ -178,8 +178,12 @@ def add_rule_partner(data, rec_row, sp_cache_entry):
     if rec_row.get('redundant_of') is not None:
         pid, why = int(rec_row['redundant_of']), 'counted under'
     elif rec_row.get('overlap_pairs'):
+        # the key is 'other', not 'clu' -- ccg_accusers uses 'clu' and the two
+        # schemas differ, which only stayed hidden because a duplicate sets
+        # redundant_of first and never reaches this branch
         p = rec_row['overlap_pairs'][0]
-        pid, why = int(p['clu'] if isinstance(p, dict) else p), 'overlapping'
+        pid = int(p.get('other', p.get('clu')) if isinstance(p, dict) else p)
+        why = 'overlapping'
     else:
         acc = [a for a in (rec_row.get('ccg_accusers') or [])
                if isinstance(a, dict) and a.get('z') is not None]
@@ -346,6 +350,15 @@ def draw_row(axes, rec_row, data, show_xlabels=False):
         role = next((o['role'] for o in others if o['clu_id'] == oid), '')
         tag(a_btw, f'vs clu {oid} ({role})', ocol.get(oid, C_OTHER[0]), .97)
         tag(a_btw, f'{n_shared} shared channels', C_QUIET, .845, size=5)
+        # Whether the partner sits on the unit's OWN peak channel decides
+        # whether layer 1 could see this comparison at all -- it only ever
+        # references same-channel clusters. For duplicates it usually cannot:
+        # 39.6% of their partners are on another channel, because re-detection
+        # is spatial. Saying so turns a caveat into the row's lesson.
+        sc = rec_row.get('_partner_same_channel')
+        if sc is False:
+            tag(a_btw, 'different peak channel', C_FIRE, .72, size=5)
+            tag(a_btw, 'layer 1 never compares these', C_QUIET, .60, size=4.5)
     else:
         a_btw.text(.5, .5, 'no shared-channel neighbour', ha='center',
                    va='center', transform=a_btw.transAxes, fontsize=6,
