@@ -51,6 +51,18 @@ SHORT_Q = {
     '7-clean': 'No rule found anything,\nand layer 1 passed it.',
     '8-fall-through': 'No rule explains it,\nbut layer 1 rejected it.',
 }
+# WHAT EACH STAGE MEASURES. Agrita asked which metric decides identity; the
+# boxes named their rule ids and never said. Each of these is the statistic the
+# rule actually reads, with its shipped threshold, so the figure answers the
+# question a reader will have at every box.
+METRIC = {
+    '1-identity': 'overlap > 50%  AND  |modal lag| > 0.2 ms',
+    '2-refractory': 'ISI violation ratio, burst-corrected',
+    '3-composition': "Hartigan's dip on the LDA projection, p < 0.05",
+    '4-contamination': 'L-ratio against the reference channel',
+    '5-neighbour': 'L-ratio in shared-channel PC space,\nCCG excess and refractory deficit',
+    '7-clean': '', '8-fall-through': '', '6-unresolved': '',
+}
 VERDICT = {'1-identity': 'duplicate', '2-refractory': 'over-split',
            '3-composition': 'over-merge / over-split',
            '4-contamination': 'contaminated',
@@ -58,7 +70,7 @@ VERDICT = {'1-identity': 'duplicate', '2-refractory': 'over-split',
            '7-clean': 'clean', '8-fall-through': 'unattributed'}
 
 
-def make_decision_flow(flow, out_path, width_in=7.6, height_in=10.2):
+def make_decision_flow(flow, out_path, width_in=7.6, height_in=11.0):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -81,7 +93,7 @@ def make_decision_flow(flow, out_path, width_in=7.6, height_in=10.2):
     Y_OUT = 0.135
     step = (TOP - TESTS_BOT) / len(tests)
     bx, bw = 0.255, 0.40
-    bh = step * 0.62
+    bh = step * 0.72
 
     # --- layer 1, which every cluster has already been through
     ax.add_patch(FancyBboxPatch((bx - 0.02, TOP + 0.034), bw + 0.04, 0.052,
@@ -112,12 +124,15 @@ def make_decision_flow(flow, out_path, width_in=7.6, height_in=10.2):
         ax.text(bx + bw / 2, yc + bh / 2 - 0.009, s['label'].upper(),
                 ha='center', va='top', fontsize=7.6, weight='bold',
                 color=C_BOX_EDGE, zorder=4)
-        ax.text(bx + bw / 2, yc + 0.002, SHORT_Q[s['stage']], ha='center',
+        ax.text(bx + bw / 2, yc + 0.004, SHORT_Q[s['stage']], ha='center',
                 va='center', fontsize=8.6, color=INK, linespacing=1.35,
                 zorder=4)
-        ax.text(bx + bw / 2, yc - bh / 2 + 0.008,
+        ax.text(bx + bw / 2, yc - bh / 2 + 0.023, METRIC[s['stage']],
+                ha='center', va='bottom', fontsize=6.6, color=C_BOX_EDGE,
+                alpha=.85, linespacing=1.25, zorder=4)
+        ax.text(bx + bw / 2, yc - bh / 2 + 0.006,
                 '   '.join(f'rule {k}  {v:,}' for k, v in s['subs'].items()),
-                ha='center', va='bottom', fontsize=6.5, color=GREY, zorder=4)
+                ha='center', va='bottom', fontsize=6.4, color=GREY, zorder=4)
 
         if s['fail']:
             ax.annotate('', xy=(bx + bw + 0.072, yc), xytext=(bx + bw, yc),
