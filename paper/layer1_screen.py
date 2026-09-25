@@ -213,12 +213,21 @@ def _save(fig, out):
     """
     import matplotlib.pyplot as plt
     from pathlib import Path as _P
+    out = _P(out)
     fig.savefig(out, facecolor='white')
-    plt.close(fig)
-    if str(out).endswith('.svg'):
+    if out.suffix == '.svg':
         from .svg_expand import expand_use
         expand_use(out)
-    return _P(out)
+        # The siblings are written from the SAME figure, in the same call, on
+        # purpose: the assembler composites the .pdf and a panel edited only as
+        # .svg would otherwise be assembled from a stale render. The .pdf is a
+        # build input (it keeps the panel vector through compositing), not a
+        # second deliverable.
+        for ext in ('.pdf', '.png'):
+            fig.savefig(out.with_suffix(ext), facecolor='white',
+                        dpi=300 if ext == '.png' else None)
+    plt.close(fig)
+    return out
 
 
 def make_threshold_panel(sweep, out_svg):
@@ -791,10 +800,20 @@ def make_pass_rate_panel(pr, out_svg):
                                                 bottom=0.22))
     rng = _np.random.default_rng(0)
 
+    def cell(table, k):
+        """Grid keys are floats in memory and strings once the record has been
+        through JSON, so the panel is redrawable from the saved file."""
+        if k in table:
+            return table[k]
+        for form in (str(k), repr(k), f'{k:g}'):
+            if form in table:
+                return table[form]
+        raise KeyError(k)
+
     def draw(ax, table, keys, fmt, xlabel, title, shipped):
         for i, k in enumerate(keys):
             for j, g in enumerate(('all', 'good', 'mua')):
-                v = _np.asarray(table[k][g], float)
+                v = _np.asarray(cell(table, k)[g], float)
                 v = v[_np.isfinite(v)]
                 if not v.size:
                     continue
@@ -824,15 +843,23 @@ def make_pass_rate_panel(pr, out_svg):
     draw(b, pr['stability'], pr['t_grid'], lambda k: f'≥ {k:.0%}',
          'Stability level', 'Isolation stability',
          pr['shipped']['t_ratio'])
+    # Upper left, not lower: the lowest threshold column is the one that sits
+    # low on the axis, so a bottom-left legend lands on its points.
     a.legend(handles=[Patch(facecolor=COL[g], edgecolor='k', linewidth=0.5,
                             label=NAME[g]) for g in ('all', 'good', 'mua')],
-             loc='lower left', bbox_to_anchor=(0.02, 0.02), fontsize=SZ['tick'],
-             frameon=True, handlelength=1.1, borderpad=0.3, labelspacing=0.25)
-    a.text(0.98, 0.04, f"{pr['n_sessions_lratio']} sessions",
-           transform=a.transAxes, ha='right', va='bottom',
-           fontsize=SZ['tick'], color=style.C['neutral'])
-    b.text(0.98, 0.04, f"{pr['n_sessions_stability']} sessions",
-           transform=b.transAxes, ha='right', va='bottom',
-           fontsize=SZ['tick'], color=style.C['neutral'])
+             loc='upper left', bbox_to_anchor=(0.01, 0.99), fontsize=SZ['tick'],
+             frameon=False, handlelength=1.1, borderpad=0.2, labelspacing=0.22)
+    # One note when both halves use the same sessions -- the second copy landed
+    # on the strictest stability column, whose points reach the axis floor.
+    nl, nt = pr['n_sessions_lratio'], pr['n_sessions_stability']
+    if nl == nt:
+        a.text(0.98, 0.04, f'{nl} sessions', transform=a.transAxes,
+               ha='right', va='bottom', fontsize=SZ['tick'],
+               color=style.C['neutral'])
+    else:
+        for ax, n in ((a, nl), (b, nt)):
+            ax.text(0.98, 0.04, f'{n} sessions', transform=ax.transAxes,
+                    ha='right', va='bottom', fontsize=SZ['tick'],
+                    color=style.C['neutral'])
     _save(fig, out_svg)
     return out_svg
