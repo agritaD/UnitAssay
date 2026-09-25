@@ -245,3 +245,109 @@ def write_exemplar_candidates(corpus_dir, out_json, **kw):
         {'corpus': str(corpus_dir), 'columns': list(COLUMNS),
          'rows': list(ROWS), 'candidates': cand}, indent=1))
     return out_json
+
+
+# ---------------------------------------------------------------------------
+# Over-splitting has TWO faces in real data, and the figure shows both.
+#
+# Figure 3A's over-split example has a refractory DIP at zero lag: one neuron's
+# spikes cut in two, so the real cell's refractory period forbids an A spike
+# and a B spike landing 1 ms apart. That is the mechanism the word names.
+#
+# Most clusters the taxonomy calls over-split do not look like that. Measured
+# per rule over 20 sessions (dip ratio = mean |lag| <= 1 ms / mean 5-20 ms
+# flanks), only rule 5c -- the refractory-deficit rule -- dips:
+#
+#     5c oversplit  median 0.57   30.0% dipping    4.0% peaked
+#     7  clean      median 0.90    7.7%           12.5%
+#     4a oversplit  median 0.96    6.8%           23.2%
+#     3a oversplit  median 1.10    3.2%           34.8%
+#     2  oversplit  median 1.39    1.4%           45.9%
+#
+# A zero-lag EXCESS is the duplicate signature, and rule 2's over-splits carry
+# one 45.9% of the time against clean's 12.5%. Without ground truth those
+# cannot be called over-split or duplicate -- which is the point the figure
+# makes explicitly rather than hides by showing only the clean case.
+#
+# A zero-lag peak is not proof of duplication either: synchronous neurons make
+# one too. That is exactly why the shipped criterion is the LAG (overlap > 50%
+# AND |modal lag| > 0.2 ms), not the excess.
+
+CCG_SHAPES = ('refractory_dip', 'coincident_excess', 'flat')
+
+
+def ccg_shape(times_a, times_b, fs=30000.0):
+    """(modal lag ms, dip ratio, shape, flank count) for one pair.
+
+    Uses the SHIPPED window, bin and dip statistic, so the label here is the
+    one the rule's own test would give.
+    """
+    from unitassay.curate.ccg import (CCG_BIN_MS, CCG_WINDOW_MS, compute_ccg,
+                                      dip_verdict)
+    if times_a is None or times_b is None or not len(times_a) or not len(times_b):
+        return None, None, None, 0
+    centers, counts = compute_ccg(np.asarray(times_a) * fs,
+                                  np.asarray(times_b) * fs,
+                                  window_ms=CCG_WINDOW_MS, bin_ms=CCG_BIN_MS,
+                                  fs=fs)
+    if not counts.size or counts.max() <= 0:
+        return None, None, None, 0
+    ratio, _label = dip_verdict(centers, counts)
+    modal = float(centers[int(np.argmax(counts))])
+    # AN EMPTY CENTRE IS NOT A REFRACTORY HOLE UNLESS THE FLANKS ARE FULL.
+    # dip_ratio = 0.00 falls out of any pair too sparse to put counts in the
+    # +-1 ms window, and the first pass ranked exactly those to the top -- with
+    # modal lags at -22 and -17 ms, i.e. the correlogram's peak was noise. The
+    # dip is only evidence when there is something for the centre to be a hole
+    # IN, so the flanks carry the power requirement.
+    flank = counts[(np.abs(centers) > 5) & (np.abs(centers) <= 20)]
+    flank_total = int(flank.sum()) if flank.size else 0
+    shape = ('refractory_dip' if (ratio < 0.3 and flank_total >= 60)
+             else 'coincident_excess' if ratio > 1.5 else 'flat')
+    return modal, float(ratio), shape, flank_total
+
+
+def oversplit_by_ccg_shape(corpus_dir, candidates, max_eval=400, per_group=8):
+    """Split the over-split candidates into the two faces, best first.
+
+    Returns {'oversplit_dip': [...], 'oversplit_nodip': [...]}, each entry
+    carrying modal_lag / dip_ratio / ccg_shape so the panel and the caption
+    quote the same numbers.
+    """
+    from unitassay.screen.io.ks_loader import load_ks_dir
+    corpus_dir = Path(corpus_dir)
+    cache = {}
+
+    def spikes(ks, clu):
+        if ks not in cache:
+            cache[ks] = load_ks_dir(ks, exclude_noise=False, load_pcs=False)
+        sp = cache[ks]
+        return sp.st[sp.clu == clu]
+
+    out = {'oversplit_dip': [], 'oversplit_nodip': []}
+    for c in candidates[:max_eval]:
+        sess = corpus_dir / c['session']
+        pid = c.get('partner')
+        if pid is None:
+            nb = sorted(c.get('layer1_neighbours') or [])
+            pid = nb[0] if nb else None
+        if pid is None:
+            continue
+        try:
+            ta, tb = spikes(c['ks_dir'], c['clu_id']), spikes(c['ks_dir'], pid)
+        except Exception:
+            continue
+        modal, ratio, shape, flank = ccg_shape(ta, tb)
+        if shape is None:
+            continue
+        rec = dict(c, partner=pid, modal_lag_ms=modal, dip_ratio=ratio,
+                   ccg_shape=shape, flank_counts=flank)
+        if shape == 'refractory_dip':
+            out['oversplit_dip'].append(rec)
+        elif shape == 'coincident_excess':
+            out['oversplit_nodip'].append(rec)
+    # cleanest first: deepest dip, and largest zero-lag excess
+    # deepest dip, but only among pairs with the counts to show one
+    out['oversplit_dip'].sort(key=lambda r: (r['dip_ratio'], -r['flank_counts']))
+    out['oversplit_nodip'].sort(key=lambda r: -r['dip_ratio'])
+    return {k: v[:per_group] for k, v in out.items()}
