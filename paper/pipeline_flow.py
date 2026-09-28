@@ -36,8 +36,14 @@ def _style():
     return plt
 
 
-def make_panel_a(steps, group, footer, out_path, width_in=15.0, height_in=3.5):
-    """`steps` is a list of dicts: name, what, time, res, kind."""
+def make_panel_a(steps, group, footer, out_path, width_in=15.0, height_in=4.0):
+    """`steps` is a list of dicts: name, what, time, rng, res, kind.
+
+    `time` is the median and `rng` the spread across sessions, on their own
+    lines. A median with no spread beside it invites the reader to treat one
+    number as the cost; these sessions run 2 to 36 minutes, and every step
+    scales with that.
+    """
     plt = _style()
     from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 
@@ -48,7 +54,7 @@ def make_panel_a(steps, group, footer, out_path, width_in=15.0, height_in=3.5):
     n = len(steps)
     gap = 0.026
     bw = (1.0 - 0.030 * 2 - gap * (n - 1)) / n
-    y0, bh = 0.300, 0.440
+    y0, bh = 0.285, 0.520
     xs = [0.030 + i * (bw + gap) for i in range(n)]
 
     # the band naming OUR half of the pipeline, drawn first so it sits behind
@@ -70,17 +76,19 @@ def make_panel_a(steps, group, footer, out_path, width_in=15.0, height_in=3.5):
                                     facecolor=fill, edgecolor=edge, lw=1.5,
                                     zorder=3))
         cx = x + bw / 2
-        ax.text(cx, y0 + bh - 0.062, s['name'], ha='center', va='top',
+        ax.text(cx, y0 + bh - 0.055, s['name'], ha='center', va='top',
                 fontsize=11.5, weight='bold', color=edge, zorder=4)
-        ax.text(cx, y0 + bh - 0.150, s['what'], ha='center', va='top',
+        ax.text(cx, y0 + bh - 0.140, s['what'], ha='center', va='top',
                 fontsize=8.6, color=INK, linespacing=1.45, zorder=4)
         # the rule separates WHAT IT DOES from WHAT IT COSTS, so a reader
         # scanning only for cost can find it in the same place every time
-        ax.plot([x + 0.016, x + bw - 0.016], [y0 + 0.176] * 2, '-',
+        ax.plot([x + 0.016, x + bw - 0.016], [y0 + 0.228] * 2, '-',
                 color=edge, lw=0.8, alpha=.45, zorder=4)
-        ax.text(cx, y0 + 0.146, s['time'], ha='center', va='top',
+        ax.text(cx, y0 + 0.198, s['time'], ha='center', va='top',
                 fontsize=9.6, weight='bold', color=edge, zorder=4)
-        ax.text(cx, y0 + 0.088, s['res'], ha='center', va='top',
+        ax.text(cx, y0 + 0.140, s['rng'], ha='center', va='top',
+                fontsize=7.6, color=edge, alpha=.85, zorder=4)
+        ax.text(cx, y0 + 0.094, s['res'], ha='center', va='top',
                 fontsize=7.8, color=MUTED, linespacing=1.5, zorder=4)
 
     for i in range(n - 1):
