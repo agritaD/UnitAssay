@@ -227,8 +227,8 @@ EX_COLOURS = {'quiet': '#0A8F40', 'drift': '#3953A4',
               'step': '#C2185B', 'coherent': '#E67E22'}
 
 
-def draw_trace_panel(ax, ks_dir, title, subtitle, ylim=None, colour_by_block=True,
-                     accent=None, batch_s=2.0):
+def draw_trace_panel(ax, ks_dir, title, subtitle, ylim=None, batch_s=2.0,
+                     note=None):
     """One session's dshift, all blocks overlaid. Returns (range_90, pairwise r).
 
     The pairwise correlation is reported because it is the finding the overlap
@@ -244,11 +244,11 @@ def draw_trace_panel(ax, ks_dir, title, subtitle, ylim=None, colour_by_block=Tru
     c = d - _np.median(d, axis=0, keepdims=True)
     t = _np.arange(d.shape[0]) * batch_s / 60.0
     nb = d.shape[1]
-    if colour_by_block:
-        cmap = LinearSegmentedColormap.from_list('blockramp', BLOCK_RAMP)
-        cols = cmap(_np.linspace(0, 1, nb))
-    else:
-        cols = [accent] * nb
+    # ONE SCHEME ON EVERY DSHIFT PANEL (Agrita). The artifact panels used to
+    # carry their own accent colour, which made them look like a different
+    # measurement rather than the same one behaving badly.
+    cmap = LinearSegmentedColormap.from_list('blockramp', BLOCK_RAMP)
+    cols = cmap(_np.linspace(0, 1, nb))
     for b in range(nb):
         ax.plot(t, c[:, b], '-', color=cols[b], lw=1.0, zorder=3)
     ax.axhspan(-ROW_PITCH_UM / 2, ROW_PITCH_UM / 2, color='#0AAA4B', alpha=.08,
@@ -264,9 +264,11 @@ def draw_trace_panel(ax, ks_dir, title, subtitle, ylim=None, colour_by_block=Tru
                  color=INK, pad=22)
     ax.text(0, 1.012, subtitle, transform=ax.transAxes, ha='left', va='bottom',
             fontsize=FS_ANN, color=MUTED)
-    ax.text(.985, .04, f'range$_{{90}}$ {r:.1f} µm\nblocks r = {rr:+.2f}',
-            transform=ax.transAxes, ha='right', va='bottom', fontsize=FS_ANN,
-            color=MUTED, linespacing=1.3)
+    txt = f'range$_{{90}}$ {r:.1f} µm\nblocks r = {rr:+.2f}'
+    if note:
+        txt += f'\n{note}'
+    ax.text(.985, .04, txt, transform=ax.transAxes, ha='right', va='bottom',
+            fontsize=FS_ANN, color=MUTED, linespacing=1.3)
     for sp_ in ax.spines.values():
         sp_.set_color(GREY)
     return r, rr
@@ -298,12 +300,19 @@ def draw_population_panel(ax, rows, highlights):
     ax.plot(xs, sl * xs + ic, '--', color='#c2410c', lw=2.2, zorder=4)
     rc, pc = stats.pearsonr(dur[clean], r90[clean])
 
-    for nm, (col, lab) in highlights.items():
-        if nm not in name:
-            continue
-        i = name.index(nm)
-        ax.scatter([dur[i]], [r90[i]], s=180, marker='*', color=col,
-                   edgecolor='white', lw=.9, zorder=6, label=lab)
+    # A GROUP GETS ONE ENTRY AND ALL ITS MARKERS. The 2020-08-01 event is four
+    # probes recording at once; starring only one of them showed a single
+    # outlier where the point is that FOUR moved together.
+    for lab, (col, members) in highlights.items():
+        first = True
+        for nm in members:
+            if nm not in name:
+                continue
+            i = name.index(nm)
+            ax.scatter([dur[i]], [r90[i]], s=170, marker='*', color=col,
+                       edgecolor='white', lw=.9, zorder=6,
+                       label=lab if first else None)
+            first = False
     ax.set_yscale('log')
     ax.axhline(ROW_PITCH_UM, color='#0AAA4B', lw=1.4, ls='--', zorder=1)
     ax.text(.012, ROW_PITCH_UM * .95, 'one 20 µm row',
@@ -323,3 +332,27 @@ def draw_population_panel(ax, rows, highlights):
     for sp_ in ax.spines.values():
         sp_.set_color(GREY)
     return dict(r=float(rc), p=float(pc), slope=float(sl), n_clean=nc, n_flag=ne)
+
+
+def draw_block_legend(ax, nb=9):
+    """The ramp as nine entries, one per block — Agrita asked for all nine.
+
+    Three sampled blocks left a reader interpolating; nine shows the ordering
+    is the whole scale and that no block is special.
+    """
+    from matplotlib.colors import LinearSegmentedColormap
+    from matplotlib.lines import Line2D
+    import numpy as _np
+    cmap = LinearSegmentedColormap.from_list('blockramp', BLOCK_RAMP)
+    cols = cmap(_np.linspace(0, 1, nb))
+    handles = [Line2D([], [], color=cols[i], lw=2.6,
+                      label=f'{i + 1}' + (' shallow' if i == 0 else
+                                          ' deep' if i == nb - 1 else ''))
+               for i in range(nb)]
+    handles.append(Line2D([], [], color='#0AAA4B', lw=7, alpha=.25,
+                          label='one 20 µm row'))
+    ax.axis('off')
+    ax.legend(handles=handles, fontsize=FS_LEG, frameon=False, ncol=5,
+              loc='center', handlelength=1.6, columnspacing=1.1,
+              labelspacing=.5, title='drift block, shallow → deep',
+              title_fontsize=FS_LEG)
