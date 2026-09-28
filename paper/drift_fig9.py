@@ -1,9 +1,18 @@
 """Figure 9, single-bank half: what the drift traces look like, and the corpus.
 
-A  the lowest-drift single-bank session, all 9 blocks
-B  the highest, once artifact-flagged sessions are excluded
-C  range_90 against recording duration, every session
-D  the same with the flagged sessions removed, and the fit
+A  a quiet single-bank recording, all 9 blocks
+B  a single-bank recording of similar length with more drift
+C  range_90 against recording duration, clean sessions, with the fit
+
+ONE SCATTER, NOT TWO. The all-sessions panel and the clean-sessions panel
+showed the same 68 points twice over, differing only by seven artifact
+sessions that the incident supplementary already accounts for. C keeps the
+clean set, which is the one the regression is run on.
+
+CONCATENATED SESSIONS ARE DEFERRED. 89 single-bank concatenations exist, up
+to 141 minutes, but all on the plain _KS4 arm -- putting one beside nb5
+panels would mix arms. The CatGT versions are specified in
+docs/catgt_concatenation_tasks.md.
 
 REAL DATA ONLY (Agrita, 2026-09-28). The synthetic calibration validates KS4's
 estimator, which is not the contribution being made here; it moves to
@@ -63,9 +72,10 @@ def make_single_bank_figure(low, high, rows, out_path):
     from unitassay.drift.metrics import load_dshift, range_90
     plt = _style()
 
-    fig = plt.figure(figsize=(15.5, 10.4))
-    gs = fig.add_gridspec(2, 2, hspace=.34, wspace=.22,
-                          left=.065, right=.985, top=.915, bottom=.070)
+    fig = plt.figure(figsize=(15.5, 10.0))
+    gs = fig.add_gridspec(2, 2, hspace=.36, wspace=.20,
+                          height_ratios=[1.0, .92],
+                          left=.065, right=.985, top=.915, bottom=.072)
 
     # ---- A and B: the traces themselves ------------------------------------
     d_lo = load_dshift(low['ks_dir'])
@@ -132,50 +142,35 @@ def make_single_bank_figure(low, high, rows, out_path):
         for sp_ in ax.spines.values():
             sp_.set_color(GREY)
 
-    # ---- C and D: the corpus, as in Fig_Drift_vs_RecDuration_SB ------------
+    # ---- C: the corpus, clean sessions, with the fit -----------------------
     r90 = np.array([r['mean_r90'] for r in rows], float)
     dur = np.array([r['dur_min'] for r in rows], float)
     clean = np.array([r['clean'] for r in rows], bool)
     nc, ne = int(clean.sum()), int((~clean).sum())
 
-    axc = fig.add_subplot(gs[1, 0])
-    axc.scatter(dur[~clean], r90[~clean], s=70, marker='^', color=GREY,
-                edgecolor='white', lw=.8, label=f'artifact-flagged ({ne})', zorder=2)
-    axc.scatter(dur[clean], r90[clean], s=52, color=LOW, alpha=.75,
-                edgecolor='white', lw=.5, label=f'clean ({nc})', zorder=3)
-    rr, pp = stats.pearsonr(dur, r90)
-    axc.text(.97, .955, f'N={len(rows)}\nr={rr:+.2f}  p={pp:.2f}',
-             transform=axc.transAxes, ha='right', va='top', fontsize=FS_ANN,
-             color=MUTED)
-    axc.set_yscale('log')
-    axc.set_xlabel('Recording duration (min)', fontsize=FS_LAB)
-    axc.set_ylabel('range$_{90}$ (µm)', fontsize=FS_LAB)
-    axc.set_title('C.  all single-bank sessions', loc='left',
-                  fontsize=FS_TITLE, weight='bold', color=INK)
-    axc.legend(fontsize=FS_LEG, frameon=False, loc='lower right')
-    for s in axc.spines.values():
-        s.set_color(GREY)
-
-    axd = fig.add_subplot(gs[1, 1])
-    axd.scatter(dur[clean], r90[clean], s=58, color=LOW, alpha=.75,
-                edgecolor='white', lw=.5, zorder=3)
+    axc = fig.add_subplot(gs[1, :])
+    axc.scatter(dur[clean], r90[clean], s=64, color=LOW, alpha=.75,
+                edgecolor='white', lw=.6, zorder=3)
     sl, ic = np.polyfit(dur[clean], r90[clean], 1)
     xs = np.linspace(dur[clean].min(), dur[clean].max(), 20)
-    axd.plot(xs, sl * xs + ic, '--', color='#c2410c', lw=2.2, zorder=4)
+    axc.plot(xs, sl * xs + ic, '--', color='#c2410c', lw=2.4, zorder=4)
     rc, pc = stats.pearsonr(dur[clean], r90[clean])
-    axd.text(.97, .97, f'N={nc}\nr={rc:+.2f}  p={pc:.3f}\nslope={sl:.2f} µm/min',
-             transform=axd.transAxes, ha='right', va='top', fontsize=FS_ANN,
-             color=MUTED)
-    axd.axhline(ROW_PITCH_UM, color='#0AAA4B', lw=1.4, ls='--')
-    axd.text(.015, ROW_PITCH_UM * 0.975, 'one 20 µm row',
-             transform=axd.get_yaxis_transform(), ha='left', va='top',
+    axc.text(.985, .04, f'N={nc} clean sessions   ({ne} artifact-flagged excluded)\n'
+                        f'r={rc:+.2f}   p={pc:.3f}   slope={sl:.2f} µm/min',
+             transform=axc.transAxes, ha='right', va='bottom', fontsize=FS_ANN,
+             color=MUTED, linespacing=1.35)
+    axc.axhline(ROW_PITCH_UM, color='#0AAA4B', lw=1.6, ls='--')
+    axc.text(.012, ROW_PITCH_UM * 0.955, 'one 20 µm row',
+             transform=axc.get_yaxis_transform(), ha='left', va='top',
              fontsize=FS_LEG, color='#0AAA4B')
-    axd.set_xlabel('Recording duration (min)', fontsize=FS_LAB)
-    axd.set_ylabel('range$_{90}$ (µm)', fontsize=FS_LAB)
-    axd.set_title('D.  clean sessions only', loc='left', fontsize=FS_TITLE,
-                  weight='bold', color=INK)
-    for s in axd.spines.values():
-        s.set_color(GREY)
+    axc.set_ylim(0, max(r90[clean].max() * 1.08, ROW_PITCH_UM * 1.12))
+    axc.set_xlabel('Recording duration (min)', fontsize=FS_LAB)
+    axc.set_ylabel('range$_{90}$ (µm)', fontsize=FS_LAB)
+    axc.set_title('C.  no growth detected with recording length',
+                  loc='left', fontsize=FS_TITLE, weight='bold', color=INK,
+                  pad=10)
+    for sp_ in axc.spines.values():
+        sp_.set_color(GREY)
 
     out_path = str(out_path)
     fig.savefig(out_path, facecolor='white')
