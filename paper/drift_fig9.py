@@ -102,12 +102,11 @@ def make_single_bank_figure(low, high, rows, out_path):
         ax.set_xlabel('Time (min)', fontsize=FS_LAB)
         ax.set_ylabel('dshift (µm)', fontsize=FS_LAB)
         r = float(range_90(d))
-        ax.set_title(f'{lab}.  {"lowest" if lab == "A" else "highest"} drift'
-                     f'  —  range$_{{90}}$ {r:.1f} µm',
+        ax.set_title(f"{lab}.  {spec['what']}  —  range$_{{90}}$ {r:.1f} µm",
                      loc='left', fontsize=FS_TITLE, weight='bold', color=INK,
                      pad=24)
         ax.text(0, 1.012, f"{spec['name']}   ·   {t[-1]:.1f} min, "
-                          f"{d.shape[1]} blocks, single bank",
+                          f"{d.shape[1]} blocks, {spec['geom']}",
                 transform=ax.transAxes, ha='left', va='bottom',
                 fontsize=FS_ANN, color=MUTED)
         # A LEGEND, not just a caption: three sampled blocks name the ends of
