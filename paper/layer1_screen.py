@@ -623,7 +623,7 @@ def make_dominance_panel(dom, out_svg):
     SZ = style.SZ
     DOT = {'energy': '#2E7D8A', 'unitassay': '#8B1A1A'}
     SWATCH = {'energy': '#ADD8E6', 'unitassay': '#F08080'}
-    NAME = {'energy': 'Waveform energy alone', 'unitassay': 'unitassay'}
+    NAME = {'energy': 'Waveform energy alone', 'unitassay': 'UnitAssay'}
     labels = [f'{lo}-{hi}' for lo, hi in dom['bins']]
 
     fig, axes = plt.subplots(1, 2, figsize=(style.W_IN * 0.62, 2.05),
