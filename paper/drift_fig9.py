@@ -211,3 +211,115 @@ def make_single_bank_figure(low, high, rows, out_path):
         from .svg_expand import expand_use, report
         expand_use(out_path)
         return report(out_path)
+
+
+# ---------------------------------------------------------------------------
+# Figure 9 as one row of examples plus the population, all single bank.
+#
+# SINGLE BANK THROUGHOUT, and that is what lets the multi-bank mechanism go to
+# supplementary cleanly: a single-bank probe has no inter-bank gap, so bug 5
+# cannot arise in any panel here. No caveat crosses the boundary.
+#
+# The exemplars are MARKED IN THE SCATTER, so a reader can see where each one
+# sits in the population instead of taking the choice on trust.
+
+EX_COLOURS = {'quiet': '#0A8F40', 'drift': '#3953A4',
+              'step': '#C2185B', 'coherent': '#E67E22'}
+
+
+def draw_trace_panel(ax, ks_dir, title, subtitle, ylim=None, colour_by_block=True,
+                     accent=None, batch_s=2.0):
+    """One session's dshift, all blocks overlaid. Returns (range_90, pairwise r).
+
+    The pairwise correlation is reported because it is the finding the overlap
+    hides: on a quiet session the nine blocks are UNCORRELATED (independent
+    estimator noise, nothing to separate), on a drifting one they are almost
+    perfectly correlated (the probe moves as a rigid body). Either way the
+    traces coincide, and without r a reader just sees 'I cannot count nine'.
+    """
+    import numpy as _np
+    from matplotlib.colors import LinearSegmentedColormap
+    from unitassay.drift.metrics import load_dshift, range_90
+    d = load_dshift(ks_dir)
+    c = d - _np.median(d, axis=0, keepdims=True)
+    t = _np.arange(d.shape[0]) * batch_s / 60.0
+    nb = d.shape[1]
+    if colour_by_block:
+        cmap = LinearSegmentedColormap.from_list('blockramp', BLOCK_RAMP)
+        cols = cmap(_np.linspace(0, 1, nb))
+    else:
+        cols = [accent] * nb
+    for b in range(nb):
+        ax.plot(t, c[:, b], '-', color=cols[b], lw=1.0, zorder=3)
+    ax.axhspan(-ROW_PITCH_UM / 2, ROW_PITCH_UM / 2, color='#0AAA4B', alpha=.08,
+               lw=0, zorder=1)
+    ax.set_xlim(t[0], t[-1])
+    if ylim:
+        ax.set_ylim(-ylim, ylim)
+    ax.grid(alpha=.25)
+    r = float(range_90(d))
+    rr = float(_np.median([_np.corrcoef(c[:, i], c[:, j])[0, 1]
+                           for i in range(nb) for j in range(i + 1, nb)]))
+    ax.set_title(title, loc='left', fontsize=FS_TITLE, weight='bold',
+                 color=INK, pad=22)
+    ax.text(0, 1.012, subtitle, transform=ax.transAxes, ha='left', va='bottom',
+            fontsize=FS_ANN, color=MUTED)
+    ax.text(.985, .04, f'range$_{{90}}$ {r:.1f} µm\nblocks r = {rr:+.2f}',
+            transform=ax.transAxes, ha='right', va='bottom', fontsize=FS_ANN,
+            color=MUTED, linespacing=1.3)
+    for sp_ in ax.spines.values():
+        sp_.set_color(GREY)
+    return r, rr
+
+
+def draw_population_panel(ax, rows, highlights):
+    """range_90 against duration, with the example sessions marked.
+
+    `highlights` maps session name -> (colour, label). Marking them is the
+    point: it shows where each example sits in the population, so a reader can
+    see that the quiet one is typical and the artifacts are the tail, rather
+    than taking the choice of exemplar on trust.
+    """
+    import numpy as _np
+    from scipy import stats
+    r90 = _np.array([r['mean_r90'] for r in rows], float)
+    dur = _np.array([r['dur_min'] for r in rows], float)
+    clean = _np.array([r['clean'] for r in rows], bool)
+    name = [r['name'] for r in rows]
+    nc, ne = int(clean.sum()), int((~clean).sum())
+
+    ax.scatter(dur[~clean], r90[~clean], s=64, marker='^', facecolor='none',
+               edgecolor=GREY, lw=1.1, zorder=2,
+               label=f'artifact-flagged ({ne})')
+    ax.scatter(dur[clean], r90[clean], s=52, color='#9fb0c0', alpha=.85,
+               edgecolor='white', lw=.5, zorder=3, label=f'clean ({nc})')
+    sl, ic = _np.polyfit(dur[clean], r90[clean], 1)
+    xs = _np.linspace(dur[clean].min(), dur[clean].max(), 20)
+    ax.plot(xs, sl * xs + ic, '--', color='#c2410c', lw=2.2, zorder=4)
+    rc, pc = stats.pearsonr(dur[clean], r90[clean])
+
+    for nm, (col, lab) in highlights.items():
+        if nm not in name:
+            continue
+        i = name.index(nm)
+        ax.scatter([dur[i]], [r90[i]], s=180, marker='*', color=col,
+                   edgecolor='white', lw=.9, zorder=6, label=lab)
+    ax.set_yscale('log')
+    ax.axhline(ROW_PITCH_UM, color='#0AAA4B', lw=1.4, ls='--', zorder=1)
+    ax.text(.012, ROW_PITCH_UM * .95, 'one 20 µm row',
+            transform=ax.get_yaxis_transform(), ha='left', va='top',
+            fontsize=FS_LEG, color='#0AAA4B')
+    ax.text(.985, .96, f'fit on the {nc} clean sessions\n'
+                       f'r={rc:+.2f}  p={pc:.3f}  slope={sl:.2f} µm/min',
+            transform=ax.transAxes, ha='right', va='top', fontsize=FS_ANN,
+            color=MUTED, linespacing=1.3)
+    ax.legend(fontsize=FS_LEG - .5, frameon=False, loc='lower left', ncol=2,
+              handletextpad=.4, columnspacing=1.0)
+    ax.margins(y=.16)
+    ax.set_xlabel('Recording duration (min)', fontsize=FS_LAB)
+    ax.set_ylabel('range$_{90}$ (µm)', fontsize=FS_LAB)
+    ax.set_title('D.  the population', loc='left', fontsize=FS_TITLE,
+                 weight='bold', color=INK, pad=10)
+    for sp_ in ax.spines.values():
+        sp_.set_color(GREY)
+    return dict(r=float(rc), p=float(pc), slope=float(sl), n_clean=nc, n_flag=ne)
