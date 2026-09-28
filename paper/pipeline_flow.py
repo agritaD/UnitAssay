@@ -23,6 +23,13 @@ OUT_EDGE, OUT_FILL = '#12695A', '#E3F0EC'
 RAW_EDGE, RAW_FILL = '#5C6B7A', '#FFFFFF'    # an input, not a processing step
 BAND = '#F7F9FC'
 
+# MINIMUM 12 pt ANYWHERE ON THE PANEL (Agrita, 2026-09-28). Sizes are named
+# rather than written at the call site so the floor is checkable in one place,
+# and asserted below so a later tweak cannot quietly go under it.
+FS_NAME, FS_WHAT, FS_TIME, FS_RNG, FS_RES = 15, 12, 13.5, 12, 12
+FS_GROUP, FS_FOOT = 16, 12
+assert min(FS_NAME, FS_WHAT, FS_TIME, FS_RNG, FS_RES, FS_GROUP, FS_FOOT) >= 12
+
 
 def _style():
     import matplotlib
@@ -36,13 +43,16 @@ def _style():
     return plt
 
 
-def make_panel_a(steps, group, footer, out_path, width_in=15.0, height_in=4.0):
+def make_panel_a(steps, group, footer, out_path, width_in=19.0, height_in=5.0):
     """`steps` is a list of dicts: name, what, time, rng, res, kind.
 
     `time` is the median and `rng` the spread across sessions, on their own
     lines. A median with no spread beside it invites the reader to treat one
     number as the cost; these sessions run 2 to 36 minutes, and every step
     scales with that.
+
+    Text is stacked from a cursor rather than at hand-tuned offsets, so the
+    12 pt floor can be raised again without re-tuning six positions by eye.
     """
     plt = _style()
     from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
@@ -51,21 +61,26 @@ def make_panel_a(steps, group, footer, out_path, width_in=15.0, height_in=4.0):
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis('off')
 
-    n = len(steps)
-    gap = 0.026
-    bw = (1.0 - 0.030 * 2 - gap * (n - 1)) / n
-    y0, bh = 0.285, 0.520
-    xs = [0.030 + i * (bw + gap) for i in range(n)]
+    def lh(fs, mult=1.0):
+        """One line of `fs` pt, as a fraction of the axes height."""
+        return (fs / 72.0) / height_in * mult
 
-    # the band naming OUR half of the pipeline, drawn first so it sits behind
+    n = len(steps)
+    gap = 0.020
+    bw = (1.0 - 0.022 * 2 - gap * (n - 1)) / n
+    xs = [0.022 + i * (bw + gap) for i in range(n)]
+    top, bh = 0.860, 0.505
+    y0 = top - bh
+
     g0, g1 = group['first'], group['last']
-    gx0, gx1 = xs[g0] - 0.011, xs[g1] + bw + 0.011
-    ax.add_patch(FancyBboxPatch((gx0, y0 - 0.052), gx1 - gx0, bh + 0.128,
+    gx0, gx1 = xs[g0] - 0.009, xs[g1] + bw + 0.009
+    ax.add_patch(FancyBboxPatch((gx0, y0 - 0.042), gx1 - gx0, bh + 0.104,
                                 boxstyle='round,pad=0.004,rounding_size=0.012',
-                                facecolor=BAND, edgecolor=UA_EDGE, lw=1.0,
+                                facecolor=BAND, edgecolor=UA_EDGE, lw=1.1,
                                 linestyle=(0, (5, 3)), zorder=1))
-    ax.text((gx0 + gx1) / 2, y0 + bh + 0.090, group['label'], ha='center',
-            va='bottom', fontsize=12.5, weight='bold', color=UA_EDGE, zorder=5)
+    ax.text((gx0 + gx1) / 2, y0 + bh + 0.074, group['label'], ha='center',
+            va='bottom', fontsize=FS_GROUP, weight='bold', color=UA_EDGE,
+            zorder=5)
 
     C = {'raw': (RAW_EDGE, RAW_FILL), 'up': (UP_EDGE, UP_FILL),
          'ua': (UA_EDGE, UA_FILL), 'out': (OUT_EDGE, OUT_FILL)}
@@ -73,33 +88,35 @@ def make_panel_a(steps, group, footer, out_path, width_in=15.0, height_in=4.0):
         edge, fill = C[s['kind']]
         ax.add_patch(FancyBboxPatch((x, y0), bw, bh,
                                     boxstyle='round,pad=0.005,rounding_size=0.014',
-                                    facecolor=fill, edgecolor=edge, lw=1.5,
+                                    facecolor=fill, edgecolor=edge, lw=1.6,
                                     zorder=3))
-        cx = x + bw / 2
-        ax.text(cx, y0 + bh - 0.055, s['name'], ha='center', va='top',
-                fontsize=11.5, weight='bold', color=edge, zorder=4)
-        ax.text(cx, y0 + bh - 0.140, s['what'], ha='center', va='top',
-                fontsize=8.6, color=INK, linespacing=1.45, zorder=4)
+        cx, y = x + bw / 2, y0 + bh - lh(FS_NAME, 1.5)
+
+        def put(txt, fs, colour, weight='normal', alpha=1.0, pad=0.55):
+            nonlocal y
+            ax.text(cx, y, txt, ha='center', va='top', fontsize=fs,
+                    weight=weight, color=colour, alpha=alpha,
+                    linespacing=1.4, zorder=4)
+            y -= lh(fs, 1.4) * txt.count('\n') + lh(fs, 1.0 + pad)
+
+        put(s['name'], FS_NAME, edge, 'bold', pad=0.35)
+        put(s['what'], FS_WHAT, INK, pad=0.60)
         # the rule separates WHAT IT DOES from WHAT IT COSTS, so a reader
-        # scanning only for cost can find it in the same place every time
-        ax.plot([x + 0.016, x + bw - 0.016], [y0 + 0.228] * 2, '-',
-                color=edge, lw=0.8, alpha=.45, zorder=4)
-        ax.text(cx, y0 + 0.198, s['time'], ha='center', va='top',
-                fontsize=9.6, weight='bold', color=edge, zorder=4)
-        ax.text(cx, y0 + 0.140, s['rng'], ha='center', va='top',
-                fontsize=7.6, color=edge, alpha=.85, zorder=4)
-        ax.text(cx, y0 + 0.094, s['res'], ha='center', va='top',
-                fontsize=7.8, color=MUTED, linespacing=1.5, zorder=4)
+        # scanning only for cost finds it in the same place in every box
+        ax.plot([x + 0.014, x + bw - 0.014], [y + lh(FS_TIME, 0.45)] * 2, '-',
+                color=edge, lw=0.9, alpha=.45, zorder=4)
+        put(s['time'], FS_TIME, edge, 'bold', pad=0.30)
+        put(s['rng'], FS_RNG, edge, alpha=.85, pad=0.45)
+        put(s['res'], FS_RES, MUTED)
 
     for i in range(n - 1):
-        x_from, x_to = xs[i] + bw, xs[i + 1]
-        ax.add_patch(FancyArrowPatch((x_from + 0.004, y0 + bh / 2),
-                                     (x_to - 0.004, y0 + bh / 2),
-                                     arrowstyle='-|>', mutation_scale=15,
-                                     color=GREY, lw=1.6, zorder=2))
+        ax.add_patch(FancyArrowPatch((xs[i] + bw + 0.003, y0 + bh / 2),
+                                     (xs[i + 1] - 0.003, y0 + bh / 2),
+                                     arrowstyle='-|>', mutation_scale=17,
+                                     color=GREY, lw=1.8, zorder=2))
 
-    ax.text(0.030, 0.098, footer, ha='left', va='top', fontsize=8.6,
-            color=MUTED, linespacing=1.65, zorder=4)
+    ax.text(0.022, y0 - 0.090, footer, ha='left', va='top', fontsize=FS_FOOT,
+            color=MUTED, linespacing=1.7, zorder=4)
 
     out_path = str(out_path)
     fig.savefig(out_path, facecolor='white')
