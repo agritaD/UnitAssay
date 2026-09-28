@@ -110,11 +110,23 @@ def make_single_bank_figure(low, high, rows, out_path):
                           f"{d.shape[1]} blocks, single bank",
                 transform=ax.transAxes, ha='left', va='bottom',
                 fontsize=FS_ANN, color=MUTED)
-        if k == 0:
-            ax.text(.985, .04, 'one line per drift block, red → blue = '
-                               'shallow → deep;\nshaded band = one 20 µm row',
-                    transform=ax.transAxes, ha='right', va='bottom',
-                    fontsize=FS_LEG, color=MUTED, linespacing=1.3)
+        # A LEGEND, not just a caption: three sampled blocks name the ends of
+        # the ramp and its middle, so a reader can place any line without
+        # counting colours.
+        from matplotlib.lines import Line2D
+        nbk = d.shape[1]
+        mid = nbk // 2
+        handles = [Line2D([], [], color=ramp[0], lw=2.0,
+                          label=f'block 1 — shallow'),
+                   Line2D([], [], color=ramp[mid], lw=2.0,
+                          label=f'block {mid + 1}'),
+                   Line2D([], [], color=ramp[-1], lw=2.0,
+                          label=f'block {nbk} — deep'),
+                   Line2D([], [], color='#0AAA4B', lw=6, alpha=.25,
+                          label='one 20 µm row')]
+        ax.legend(handles=handles, fontsize=FS_LEG, frameon=False,
+                  loc='lower left', ncol=2, handlelength=1.5,
+                  columnspacing=1.2, labelspacing=.35)
         # NO COLOURBAR. One per panel crowded both and its label sat on B's
         # y axis; a single shared one still costs width that the traces want.
         # The ramp is self-evident once the caption names its direction.
