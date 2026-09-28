@@ -37,7 +37,7 @@ INK, MUTED, GREY = '#0D1B4B', '#546E7A', '#9aa7b4'
 # which is right here, since block index is a position on the probe.
 BLOCK_RAMP = ('#C2185B', '#9B2A8F', '#6B3BA8', '#3953A4')
 LOW, HIGH = '#3953A4', '#C2185B'
-FS_LAB, FS_TITLE, FS_ANN, FS_LEG, FS_TICK = 13, 14.5, 12.5, 11.5, 11.5
+FS_LAB, FS_TITLE, FS_ANN, FS_LEG, FS_TICK = 15, 17, 14, 13.5, 13
 ROW_PITCH_UM = 20.0
 
 
@@ -47,7 +47,8 @@ def _style():
     import matplotlib.pyplot as plt
     plt.rcParams.update({
         'font.family': 'sans-serif',
-        'font.sans-serif': ['Arial', 'Helvetica', 'DejaVu Sans'],
+        'font.sans-serif': ['Arial', 'Liberation Sans', 'Nimbus Sans',
+                            'Helvetica', 'DejaVu Sans'],
         'svg.fonttype': 'none', 'pdf.fonttype': 42,
         'xtick.labelsize': FS_TICK, 'ytick.labelsize': FS_TICK,
         'axes.linewidth': 0.9})
@@ -250,7 +251,7 @@ def draw_trace_panel(ax, ks_dir, title, subtitle, ylim=None, batch_s=2.0,
     cmap = LinearSegmentedColormap.from_list('blockramp', BLOCK_RAMP)
     cols = cmap(_np.linspace(0, 1, nb))
     for b in range(nb):
-        ax.plot(t, c[:, b], '-', color=cols[b], lw=1.0, zorder=3)
+        ax.plot(t, c[:, b], '-', color=cols[b], lw=1.6, zorder=3)
     ax.axhspan(-ROW_PITCH_UM / 2, ROW_PITCH_UM / 2, color='#0AAA4B', alpha=.08,
                lw=0, zorder=1)
     ax.set_xlim(t[0], t[-1])
@@ -261,14 +262,22 @@ def draw_trace_panel(ax, ks_dir, title, subtitle, ylim=None, batch_s=2.0,
     rr = float(_np.median([_np.corrcoef(c[:, i], c[:, j])[0, 1]
                            for i in range(nb) for j in range(i + 1, nb)]))
     ax.set_title(title, loc='left', fontsize=FS_TITLE, weight='bold',
-                 color=INK, pad=22)
-    ax.text(0, 1.012, subtitle, transform=ax.transAxes, ha='left', va='bottom',
+                 color=INK, pad=44)
+    # THE STATS GO OUTSIDE THE AXES. In the bottom-right corner they were the
+    # binding constraint on ylim: clearing two lines of text under a trace that
+    # drifts DOWNWARD costs more headroom than the trace itself, which forced
+    # panel B to +/-60 for data reaching 28.5 um. Out here the limits come from
+    # the signal.
+    # ON ITS OWN LINE, not appended: as one run it overran the panel and read
+    # into the next column, which is worse than the corner it came from.
+    ax.text(0, 1.105, subtitle, transform=ax.transAxes, ha='left',
+            va='bottom', fontsize=FS_ANN, color=MUTED)
+    ax.text(0, 1.012, f'range$_{{90}}$ {r:.1f} µm   ·   blocks r = {rr:+.2f}',
+            transform=ax.transAxes, ha='left', va='bottom',
             fontsize=FS_ANN, color=MUTED)
-    txt = f'range$_{{90}}$ {r:.1f} µm\nblocks r = {rr:+.2f}'
     if note:
-        txt += f'\n{note}'
-    ax.text(.985, .04, txt, transform=ax.transAxes, ha='right', va='bottom',
-            fontsize=FS_ANN, color=MUTED, linespacing=1.3)
+        ax.text(.985, .955, note, transform=ax.transAxes, ha='right',
+                va='top', fontsize=FS_ANN, color=MUTED, linespacing=1.3)
     for sp_ in ax.spines.values():
         sp_.set_color(GREY)
     return r, rr
@@ -388,8 +397,9 @@ def draw_geometry_panel(ax, sessions, clean_only=True):
     c = _np.array([s['r90'] for s in g[2]], float)
     cp = _np.array([s['r90_pop'] for s in g[2]], float)
 
-    cols = [(0.0, a, '#9fb0c0'), (1.0, b, '#9fb0c0'),
-            (2.30, c, '#9fb0c0'), (3.30, cp, '#9fb0c0')]
+    DOT = '#5F7284'          # darker than the D scatter: here the dots ARE
+    cols = [(0.0, a, DOT), (1.0, b, DOT),   # the content, not a backdrop for
+            (2.30, c, DOT), (3.30, cp, DOT)]  # a fit line
     rng = _np.random.default_rng(0)
 
     # the pairing first, so dots sit on top of their own connectors
@@ -399,12 +409,12 @@ def draw_geometry_panel(ax, sessions, clean_only=True):
 
     for x, v, col in cols:
         jit = rng.uniform(-.17, .17, v.size)
-        ax.scatter(x + jit, v, s=30, color=col, alpha=.85, edgecolor='white',
-                   lw=.4, zorder=3)
+        ax.scatter(x + jit, v, s=32, color=col, alpha=.92, edgecolor='white',
+                   lw=.45, zorder=3)
         m = float(_np.median(v))
         ax.plot([x - .30, x + .30], [m, m], '-', color=INK, lw=2.6, zorder=4,
                 solid_capstyle='butt')
-        ax.text(x, m * 1.30, f'{m:.1f}', ha='center', va='bottom',
+        ax.text(x, m * 1.52, f'{m:.1f}', ha='center', va='bottom',
                 fontsize=FS_ANN - 1.5, color=INK, weight='bold', zorder=5)
 
     ax.axhline(ROW_PITCH_UM, ls='--', lw=1.6, color='#0A8F40', zorder=2)
@@ -423,12 +433,13 @@ def draw_geometry_panel(ax, sessions, clean_only=True):
                 fontsize=FS_ANN - 2, color=MUTED)
 
     top = float(max(c.max(), a.max()))
+    bot = float(min(a.min(), b.min(), c.min(), cp.min()))
     _bracket(0.0, 1.0, top * 1.35, f'n.s.  p = {p_sb:.2f}')
     _bracket(1.0, 2.30, top * 2.35, f'p = {p_rep:.3f}')
     _bracket(1.0, 3.30, top * 4.10, f'n.s.  p = {p_cor:.2f}')
 
     ax.set_yscale('log')
-    ax.set_ylim(top * .055, top * 9.5)
+    ax.set_ylim(bot * .70, top * 6.6)
     ax.set_xlim(-.55, 3.85)
     ax.set_xticks([x for x, _, _ in cols])
     ax.set_xticklabels([f'single bank\n({a.size})',
