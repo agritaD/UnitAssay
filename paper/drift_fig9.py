@@ -356,3 +356,93 @@ def draw_block_legend(ax, nb=9):
               loc='center', handlelength=1.6, columnspacing=1.1,
               labelspacing=.5, title='drift block, shallow → deep',
               title_fontsize=FS_LEG)
+
+
+def draw_geometry_panel(ax, sessions, clean_only=True):
+    """range_90 by probe configuration, with the gap-block correction shown.
+
+    THE MULTI-BANK PENALTY IS NOT MECHANICAL, and a dshift trace cannot say so
+    -- one trace is one session, and this is a statement about the corpus.
+
+    Three facts, in the order the columns make them:
+      * multi-bank sessions whose nine blocks happen to MISS the bank gap are
+        indistinguishable from single-bank ones (p = .15);
+      * the excess is confined to sessions carrying at least one gap block
+        (p = .003 against the no-gap multi-bank group);
+      * excluding those blocks removes most of the excess AND the significance
+        (p = .16), which is what makes it an estimation artifact rather than
+        motion. The mechanism is the supplementary's subject; this panel only
+        needs the reader to accept that the correction has a direction.
+
+    Columns 3 and 4 are the SAME sessions, so they are drawn paired: a reader
+    who sees two independent-looking distributions will read the drop as a
+    different sample rather than as a per-session correction.
+    """
+    import numpy as _np
+    from scipy import stats
+
+    S = [s for s in sessions if s['clean']] if clean_only else list(sessions)
+    g = {c: [s for s in S if s['cls'] == c] for c in (0, 1, 2)}
+    a = _np.array([s['r90'] for s in g[0]], float)
+    b = _np.array([s['r90'] for s in g[1]], float)
+    c = _np.array([s['r90'] for s in g[2]], float)
+    cp = _np.array([s['r90_pop'] for s in g[2]], float)
+
+    cols = [(0.0, a, '#9fb0c0'), (1.0, b, '#9fb0c0'),
+            (2.30, c, '#9fb0c0'), (3.30, cp, '#9fb0c0')]
+    rng = _np.random.default_rng(0)
+
+    # the pairing first, so dots sit on top of their own connectors
+    for y0, y1 in zip(c, cp):
+        ax.plot([2.30 + .16, 3.30 - .16], [y0, y1], '-', color='#cfd8e0',
+                lw=.7, zorder=1)
+
+    for x, v, col in cols:
+        jit = rng.uniform(-.17, .17, v.size)
+        ax.scatter(x + jit, v, s=30, color=col, alpha=.85, edgecolor='white',
+                   lw=.4, zorder=3)
+        m = float(_np.median(v))
+        ax.plot([x - .30, x + .30], [m, m], '-', color=INK, lw=2.6, zorder=4,
+                solid_capstyle='butt')
+        ax.text(x, m * 1.30, f'{m:.1f}', ha='center', va='bottom',
+                fontsize=FS_ANN - 1.5, color=INK, weight='bold', zorder=5)
+
+    ax.axhline(ROW_PITCH_UM, ls='--', lw=1.6, color='#0A8F40', zorder=2)
+    ax.text(-.45, ROW_PITCH_UM * 1.12, 'one 20 µm row', ha='left', va='bottom',
+            fontsize=FS_ANN - 1.5, color='#0A8F40')
+
+    p_sb = stats.mannwhitneyu(a, b).pvalue          # geometry alone
+    p_rep = stats.mannwhitneyu(b, c).pvalue         # the apparent penalty
+    p_cor = stats.mannwhitneyu(b, cp).pvalue        # what survives correction
+    p_pair = stats.wilcoxon(c, cp).pvalue
+
+    def _bracket(x0, x1, y, txt):
+        ax.plot([x0, x0, x1, x1], [y, y * 1.13, y * 1.13, y], '-',
+                color=MUTED, lw=1.0, zorder=5)
+        ax.text((x0 + x1) / 2, y * 1.22, txt, ha='center', va='bottom',
+                fontsize=FS_ANN - 2, color=MUTED)
+
+    top = float(max(c.max(), a.max()))
+    _bracket(0.0, 1.0, top * 1.35, f'n.s.  p = {p_sb:.2f}')
+    _bracket(1.0, 2.30, top * 2.35, f'p = {p_rep:.3f}')
+    _bracket(1.0, 3.30, top * 4.10, f'n.s.  p = {p_cor:.2f}')
+
+    ax.set_yscale('log')
+    ax.set_ylim(top * .055, top * 9.5)
+    ax.set_xlim(-.55, 3.85)
+    ax.set_xticks([x for x, _, _ in cols])
+    ax.set_xticklabels([f'single bank\n({a.size})',
+                        f'multi-bank\nno gap block\n({b.size})',
+                        f'multi-bank\n≥1 gap block\n({c.size})',
+                        f'the same {cp.size}\ngap blocks\nexcluded'],
+                       fontsize=FS_ANN - 2)
+    ax.set_ylabel('range$_{90}$ (µm)', fontsize=FS_LAB)
+    for sp in ('top', 'right'):
+        ax.spines[sp].set_visible(False)
+    ax.grid(axis='y', color='#e8ecf0', lw=.8)
+    ax.set_axisbelow(True)
+
+    return {'n': [a.size, b.size, c.size], 'med': [float(_np.median(v))
+            for v in (a, b, c, cp)], 'p_sb': float(p_sb),
+            'p_rep': float(p_rep), 'p_cor': float(p_cor),
+            'p_pair': float(p_pair)}
