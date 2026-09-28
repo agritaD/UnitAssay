@@ -19,6 +19,13 @@ verdict is carried alongside and is what sorts the terminus. Drawing it as a
 first gate would say that layer 2 only sees what layer 1 passed, which is the
 opposite of how the two layers work.
 
+THREE OUTCOMES, NOT TWO. `low_spike` heads OUTCOME_PRIORITY and so masks every
+finding beneath it; counting `error_class == 'low_spike_count'` as untestable
+swept 4,041 real failures in with it, and counting those clusters as PASS
+credited the tool with verdicts it never rendered. The flow now asks of the
+FINDINGS, not the label: a cluster whose only finding is `low_spike` leaves at
+NOT TESTABLE.
+
 ONE PASS OUTCOME. The 3,978 that leave at NEIGHBOUR are passes, so they end in
 the same box as the 20,561 that reach the end clean; splitting them into a
 mid-flow branch and a separate total left one of them dangling in the margin.
@@ -37,6 +44,9 @@ C_BOX = '#EDF1F8'
 C_BOX_EDGE = '#3953A4'
 C_FAIL = '#CE4679'
 C_PASS = '#0A8F40'          # green: what survives
+C_NONE = '#6B7684'          # grey: no verdict was rendered, which is not a
+#                             third verdict -- it is the absence of one, and
+#                             the muted weight says so.
 C_DEAD = '#C7CCD4'
 INK = '#111418'
 GREY = '#5B6470'
@@ -178,7 +188,8 @@ def make_decision_flow(flow, out_path, width_in=7.6, height_in=10.4):
     ax.text(bx + bw / 2 + 0.012, Y_OUT + 0.100, 'the rules stop here',
             ha='left', va='bottom', fontsize=7.2, style='italic', color=GREY)
 
-    # --- two outcomes, and they ARE the totals
+    # --- three outcomes, and they ARE the totals
+    untest = flow['n_untestable']
     for (col, side, verdict, n, parts) in (
             (C_PASS, -1, 'PASS', flow['n_pass'],
              f"clean {clean['pas']:,}\npassed at NEIGHBOUR {rescued:,}\n"
@@ -186,14 +197,18 @@ def make_decision_flow(flow, out_path, width_in=7.6, height_in=10.4):
             (C_FAIL, +1, 'FAIL', flow['n_fail'],
              f"a rule named the fault {attributed:,}\n"
              f"no rule could explain it {fall['fail']:,}\n"
-             f"(layer 1 had rejected those)")):
-        cx = bx + bw / 2 + side * 0.195
-        ax.add_patch(FancyBboxPatch((cx - 0.176, Y_OUT - 0.082), 0.352, 0.146,
+             f"(layer 1 had rejected those)"),
+            (C_NONE, 0, 'NOT TESTABLE', untest,
+             f"too few spikes, and nothing\nelse fired: no test could reach\n"
+             f"them, so no verdict is claimed")):
+        cx = bx + bw / 2 + side * 0.300
+        ax.add_patch(FancyBboxPatch((cx - 0.139, Y_OUT - 0.082), 0.278, 0.146,
                                     boxstyle='round,pad=0.006,rounding_size=0.012',
                                     facecolor='white', edgecolor=col, lw=1.3,
                                     zorder=3))
         ax.text(cx, Y_OUT + 0.036, f'{verdict}  {n:,}', ha='center',
-                va='center', fontsize=11.5, weight='bold', color=col, zorder=4)
+                va='center', fontsize=11.5 if side else 9.0, weight='bold',
+                color=col, zorder=4)
         ax.text(cx, Y_OUT + 0.014, f'{100 * n / total:.1f}% of clusters',
                 ha='center', va='center', fontsize=7.2, color=GREY, zorder=4)
         ax.text(cx, Y_OUT - 0.038, parts, ha='center', va='center',
@@ -202,6 +217,12 @@ def make_decision_flow(flow, out_path, width_in=7.6, height_in=10.4):
                     xytext=(bx + bw / 2, Y_OUT + 0.085),
                     arrowprops=dict(arrowstyle='-|>', color=col, lw=1.2,
                                     connectionstyle='arc3,rad=%.2f' % (0.14 * side)))
+    # the untestable share is the caveat on every rate quoted from this flow
+    ax.text(bx + bw / 2, Y_OUT - 0.108,
+            f'{100 * untest / total:.1f}% of clusters never reached a test — '
+            f'no rate in this figure should be read as if they had',
+            ha='center', va='top', fontsize=6.8, style='italic', color=C_NONE,
+            zorder=4)
 
     ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis('off')
     out_path = str(out_path)

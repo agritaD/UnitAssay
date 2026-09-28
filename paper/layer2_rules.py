@@ -475,6 +475,7 @@ def sieve_flow(corpus_dir):
     corpus_dir = Path(corpus_dir)
     fail = {r: 0 for r in SIEVE_ORDER}
     pas = {r: 0 for r in SIEVE_ORDER}
+    untestable = {r: 0 for r in SIEVE_ORDER}
     n_sessions = 0
     for path in sorted(corpus_dir.glob('*/curated.json')):
         n_sessions += 1
@@ -482,24 +483,28 @@ def sieve_flow(corpus_dir):
             rid = str(row.get('rule_id') or rule_id(row.get('rule')))
             if rid not in fail:
                 raise KeyError(f'rule {rid} is not placed in SIEVE_ORDER')
-            (pas if row.get('decision') == 'PASS' else fail)[rid] += 1
+            if set(row.get('findings') or ()) == {'low_spike'}:
+                untestable[rid] += 1        # see decision_flow_counts
+            else:
+                (pas if row.get('decision') == 'PASS' else fail)[rid] += 1
 
-    total = sum(fail.values()) + sum(pas.values())
+    total = sum(fail.values()) + sum(pas.values()) + sum(untestable.values())
     stations, remaining = [], total
     for r in SIEVE_ORDER:
-        f, p = fail[r], pas[r]
-        if f == 0 and p == 0:
+        f, p, u = fail[r], pas[r], untestable[r]
+        if f == 0 and p == 0 and u == 0:
             stations.append(dict(rule=r, name=SIEVE_NAME[r], fail=0, pas=0,
-                                 entering=remaining, remaining=remaining,
-                                 fires=False))
+                                 untestable=0, entering=remaining,
+                                 remaining=remaining, fires=False))
             continue
         stations.append(dict(rule=r, name=SIEVE_NAME[r], fail=f, pas=p,
-                             entering=remaining, remaining=remaining - f - p,
-                             fires=True))
-        remaining -= f + p
+                             untestable=u, entering=remaining,
+                             remaining=remaining - f - p - u, fires=True))
+        remaining -= f + p + u
     assert remaining == 0, f'{remaining:,} clusters unaccounted for'
     return dict(total=total, n_sessions=n_sessions, stations=stations,
-                n_pass=sum(pas.values()), n_fail=sum(fail.values()))
+                n_pass=sum(pas.values()), n_fail=sum(fail.values()),
+                n_untestable=sum(untestable.values()))
 
 
 def decision_flow_counts(corpus_dir):
@@ -513,7 +518,7 @@ def decision_flow_counts(corpus_dir):
     """
     from unitassay.curate.decision_flow import STAGE, STAGE_QUESTION
     corpus_dir = Path(corpus_dir)
-    fail, pas = {}, {}
+    fail, pas, untestable = {}, {}, {}
     subs, classes = {}, {}
     # LAYER 1'S VERDICT IS AN INPUT TO THIS FLOW. Every cluster arrives
     # already screened, and the terminal buckets are defined by that verdict
@@ -530,7 +535,19 @@ def decision_flow_counts(corpus_dir):
             if stg is None:
                 raise KeyError(f"rule {row.get('rule')!r} has no stage")
             rid = str(row.get('rule_id') or rule_id(row.get('rule')))
-            d = pas if row.get('decision') == 'PASS' else fail
+            # NOT TESTABLE IS NOT A VERDICT. `error_class` returns the
+            # highest-priority finding and `low_spike` sits FIRST in
+            # OUTCOME_PRIORITY, so it masks everything under it -- a cluster
+            # that failed contamination on 140 spikes still reports
+            # `low_spike_count`. Reading that label as "no test could reach
+            # it" moved 4,041 real failures into the untestable bucket.
+            # The testable question is about the FINDINGS: a cluster nothing
+            # else fired on, that is too small to test, has had no verdict
+            # rendered on it and must not be counted as a pass.
+            if set(row.get('findings') or ()) == {'low_spike'}:
+                d = untestable
+            else:
+                d = pas if row.get('decision') == 'PASS' else fail
             d[stg] = d.get(stg, 0) + 1
             subs.setdefault(stg, {})
             subs[stg][rid] = subs[stg].get(rid, 0) + 1
@@ -538,7 +555,8 @@ def decision_flow_counts(corpus_dir):
             # fall-through differs from an attributed failure
             sp_ = bool(row.get('screen_pass'))
             screen[sp_] += 1
-            if row.get('decision') == 'PASS' and not sp_:
+            if (row.get('decision') == 'PASS' and not sp_
+                    and set(row.get('findings') or ()) != {'low_spike'}):
                 rescued += 1
             ecl = row.get('error_class') or 'unclassified'
             classes.setdefault(stg, {})
@@ -546,10 +564,10 @@ def decision_flow_counts(corpus_dir):
 
     order = ['1-identity', '2-refractory', '3-composition', '4-contamination',
              '5-neighbour', '6-unresolved', '7-clean', '8-fall-through']
-    total = sum(fail.values()) + sum(pas.values())
+    total = sum(fail.values()) + sum(pas.values()) + sum(untestable.values())
     out, remaining = [], total
     for stg in order:
-        f, p = fail.get(stg, 0), pas.get(stg, 0)
+        f, p, u = fail.get(stg, 0), pas.get(stg, 0), untestable.get(stg, 0)
         comp = ''
         if stg in ('7-clean', '8-fall-through'):
             cls = classes.get(stg, {})
@@ -558,12 +576,14 @@ def decision_flow_counts(corpus_dir):
                               for k, v in top)
         out.append(dict(stage=stg, label=stg.split('-', 1)[1], composition=comp,
                         question=STAGE_QUESTION[stg], fail=f, pas=p,
-                        entering=remaining, remaining=remaining - f - p,
+                        untestable=u, entering=remaining,
+                        remaining=remaining - f - p - u,
                         subs=dict(sorted(subs.get(stg, {}).items())),
-                        fires=bool(f or p)))
-        remaining -= f + p
+                        fires=bool(f or p or u)))
+        remaining -= f + p + u
     assert remaining == 0, f'{remaining:,} clusters unaccounted for'
     return dict(total=total, n_sessions=n_sessions, stages=out,
                 n_pass=sum(pas.values()), n_fail=sum(fail.values()),
+                n_untestable=sum(untestable.values()),
                 screen_pass=screen[True], screen_fail=screen[False],
                 rescued=rescued)
