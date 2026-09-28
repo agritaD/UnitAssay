@@ -18,6 +18,15 @@ titles 14.5 bold, annotations 12.5, legend 11.5.
 import numpy as np
 
 INK, MUTED, GREY = '#0D1B4B', '#546E7A', '#9aa7b4'
+
+# BLOCK RAMP: red -> blue, shallow to deep (Agrita). Nine lines of one hue are
+# hard to tell apart where they cross; two opposed hues separate the ends at a
+# glance. It runs through PURPLE rather than through white: RdBu and coolwarm
+# both pass near-white at their midpoint, which would make the middle block
+# invisible against the page. The trade is that a red-blue ramp is not
+# lightness-monotonic, so it reads as ordered rather than as a magnitude --
+# which is right here, since block index is a position on the probe.
+BLOCK_RAMP = ('#C2185B', '#9B2A8F', '#6B3BA8', '#3953A4')
 LOW, HIGH = '#3953A4', '#C2185B'
 FS_LAB, FS_TITLE, FS_ANN, FS_LEG, FS_TICK = 13, 14.5, 12.5, 11.5, 11.5
 ROW_PITCH_UM = 20.0
@@ -76,7 +85,9 @@ def make_single_bank_figure(low, high, rows, out_path):
         ax = fig.add_subplot(gs[0, k])
         c = d - np.median(d, axis=0, keepdims=True)
         t = np.arange(d.shape[0]) * 2.0 / 60.0
-        ramp = _plt.cm.Blues(np.linspace(.42, .95, d.shape[1]))
+        from matplotlib.colors import LinearSegmentedColormap
+        cmap = LinearSegmentedColormap.from_list('blockramp', BLOCK_RAMP)
+        ramp = cmap(np.linspace(0, 1, d.shape[1]))
         # NO PER-LINE NUMBERS. Panel 6 of the KS4-algorithm figure can label
         # each line because its blocks separate in dshift; on a single-bank
         # session they end within a micron of each other and nine numbers pile
@@ -100,8 +111,8 @@ def make_single_bank_figure(low, high, rows, out_path):
                 transform=ax.transAxes, ha='left', va='bottom',
                 fontsize=FS_ANN, color=MUTED)
         if k == 0:
-            ax.text(.985, .04, 'one line per drift block, shallow → deep;\n'
-                               'shaded band = one 20 µm row',
+            ax.text(.985, .04, 'one line per drift block, red → blue = '
+                               'shallow → deep;\nshaded band = one 20 µm row',
                     transform=ax.transAxes, ha='right', va='bottom',
                     fontsize=FS_LEG, color=MUTED, linespacing=1.3)
         # NO COLOURBAR. One per panel crowded both and its label sat on B's
