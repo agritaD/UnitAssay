@@ -39,6 +39,22 @@ BLOCK_RAMP = ('#C2185B', '#9B2A8F', '#6B3BA8', '#3953A4')
 LOW, HIGH = '#3953A4', '#C2185B'
 FS_LAB, FS_TITLE, FS_ANN, FS_LEG, FS_TICK = 15, 17, 14, 13.5, 13
 ROW_PITCH_UM = 20.0
+SUB_PAD = 42          # points from the axes top to the title baseline
+
+
+def _subtitle(ax, *lines):
+    """Muted lines stacked under a panel title, measured in POINTS.
+
+    Axes-fraction offsets do not survive a panel that is a different height:
+    the same fraction on the double-height population panel is twice the
+    distance it is on a trace panel, which put its first line through its own
+    title. `pad` is already in points, so keeping these in points means title
+    and subtitle stack in one unit system whatever the panel's height.
+    """
+    for i, txt in enumerate(reversed(lines)):
+        ax.annotate(txt, xy=(0, 1), xycoords='axes fraction',
+                    xytext=(0, 3 + i * 16), textcoords='offset points',
+                    ha='left', va='bottom', fontsize=FS_ANN, color=MUTED)
 
 
 def _style():
@@ -262,7 +278,7 @@ def draw_trace_panel(ax, ks_dir, title, subtitle, ylim=None, batch_s=2.0,
     rr = float(_np.median([_np.corrcoef(c[:, i], c[:, j])[0, 1]
                            for i in range(nb) for j in range(i + 1, nb)]))
     ax.set_title(title, loc='left', fontsize=FS_TITLE, weight='bold',
-                 color=INK, pad=44)
+                 color=INK, pad=SUB_PAD)
     # THE STATS GO OUTSIDE THE AXES. In the bottom-right corner they were the
     # binding constraint on ylim: clearing two lines of text under a trace that
     # drifts DOWNWARD costs more headroom than the trace itself, which forced
@@ -270,11 +286,8 @@ def draw_trace_panel(ax, ks_dir, title, subtitle, ylim=None, batch_s=2.0,
     # the signal.
     # ON ITS OWN LINE, not appended: as one run it overran the panel and read
     # into the next column, which is worse than the corner it came from.
-    ax.text(0, 1.105, subtitle, transform=ax.transAxes, ha='left',
-            va='bottom', fontsize=FS_ANN, color=MUTED)
-    ax.text(0, 1.012, f'range$_{{90}}$ {r:.1f} µm   ·   blocks r = {rr:+.2f}',
-            transform=ax.transAxes, ha='left', va='bottom',
-            fontsize=FS_ANN, color=MUTED)
+    _subtitle(ax, subtitle,
+              f'range$_{{90}}$ {r:.1f} µm   ·   blocks r = {rr:+.2f}')
     if note:
         ax.text(.985, .955, note, transform=ax.transAxes, ha='right',
                 va='top', fontsize=FS_ANN, color=MUTED, linespacing=1.3)
@@ -299,10 +312,14 @@ def draw_population_panel(ax, rows, highlights):
     name = [r['name'] for r in rows]
     nc, ne = int(clean.sum()), int((~clean).sum())
 
+    # Darker than the original wash: one dot is one session and they are the
+    # evidence, not a backdrop for the fit line. The open triangles take a
+    # darker edge still, or an outline marker reads lighter than a filled one
+    # at the same value.
     ax.scatter(dur[~clean], r90[~clean], s=64, marker='^', facecolor='none',
-               edgecolor=GREY, lw=1.1, zorder=2,
+               edgecolor='#3E4E5E', lw=1.3, zorder=2,
                label=f'artifact-flagged ({ne})')
-    ax.scatter(dur[clean], r90[clean], s=52, color='#9fb0c0', alpha=.85,
+    ax.scatter(dur[clean], r90[clean], s=52, color='#5F7284', alpha=.9,
                edgecolor='white', lw=.5, zorder=3, label=f'clean ({nc})')
     sl, ic = _np.polyfit(dur[clean], r90[clean], 1)
     xs = _np.linspace(dur[clean].min(), dur[clean].max(), 20)
@@ -327,17 +344,15 @@ def draw_population_panel(ax, rows, highlights):
     ax.text(.012, ROW_PITCH_UM * .95, 'one 20 µm row',
             transform=ax.get_yaxis_transform(), ha='left', va='top',
             fontsize=FS_LEG, color='#0AAA4B')
-    ax.text(.985, .96, f'fit on the {nc} clean sessions\n'
-                       f'r={rc:+.2f}  p={pc:.3f}  slope={sl:.2f} µm/min',
-            transform=ax.transAxes, ha='right', va='top', fontsize=FS_ANN,
-            color=MUTED, linespacing=1.3)
-    ax.legend(fontsize=FS_LEG - .5, frameon=False, loc='lower left', ncol=2,
+    _subtitle(ax, f'fit on the {nc} clean sessions',
+              f'r={rc:+.2f}   ·   p={pc:.3f}   ·   slope={sl:.2f} µm/min')
+    ax.legend(fontsize=FS_LEG - .5, frameon=False, loc='upper right', ncol=2,
               handletextpad=.4, columnspacing=1.0)
     ax.margins(y=.16)
     ax.set_xlabel('Recording duration (min)', fontsize=FS_LAB)
     ax.set_ylabel('range$_{90}$ (µm)', fontsize=FS_LAB)
     ax.set_title('D.  the population', loc='left', fontsize=FS_TITLE,
-                 weight='bold', color=INK, pad=10)
+                 weight='bold', color=INK, pad=SUB_PAD)
     for sp_ in ax.spines.values():
         sp_.set_color(GREY)
     return dict(r=float(rc), p=float(pc), slope=float(sl), n_clean=nc, n_flag=ne)
