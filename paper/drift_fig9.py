@@ -66,40 +66,49 @@ def make_single_bank_figure(low, high, rows, out_path):
     hi_c = d_hi - np.median(d_hi, axis=0, keepdims=True)
     off = 2.4 * float(np.percentile(np.abs(hi_c), 98))
 
-    for k, (spec, d, col, lab) in enumerate((
-            (low, d_lo, LOW, 'A'), (high, d_hi, HIGH, 'B'))):
+    # OVERLAID, one line per block, in the idiom of Fig_KS4_Drift_Algorithm
+    # panel 6: a Blues ramp shallow -> deep, each line numbered at its right
+    # end. Both panels share ONE y range, set by the high session -- scaled
+    # independently they would look alike, which is the opposite of the point.
+    import matplotlib.pyplot as _plt
+    ylim = float(np.percentile(np.abs(hi_c), 99.5)) * 1.25
+    for k, (spec, d, lab) in enumerate(((low, d_lo, 'A'), (high, d_hi, 'B'))):
         ax = fig.add_subplot(gs[0, k])
         c = d - np.median(d, axis=0, keepdims=True)
         t = np.arange(d.shape[0]) * 2.0 / 60.0
+        ramp = _plt.cm.Blues(np.linspace(.42, .95, d.shape[1]))
+        # NO PER-LINE NUMBERS. Panel 6 of the KS4-algorithm figure can label
+        # each line because its blocks separate in dshift; on a single-bank
+        # session they end within a micron of each other and nine numbers pile
+        # into one blob. The ramp carries depth instead, with a colourbar.
         for b in range(d.shape[1]):
-            ax.plot(t, c[:, b] + b * off, lw=.9, color=col, alpha=.85)
-            ax.text(t[-1] * 1.012, b * off, str(b), fontsize=FS_LEG - 1,
-                    va='center', ha='left', color=MUTED)
-        ax.set_xlim(t[0] - t[-1] * .012, t[-1] * 1.16)
-        ax.set_yticks([0, (d.shape[1] - 1) * off])
-        ax.set_yticklabels(['block 0', f'block {d.shape[1] - 1}'])
+            ax.plot(t, c[:, b], '-', color=ramp[b], lw=1.2, zorder=3)
+        ax.axhspan(-ROW_PITCH_UM / 2, ROW_PITCH_UM / 2, color='#0AAA4B',
+                   alpha=.08, lw=0, zorder=1)
+        ax.set_xlim(t[0], t[-1])
+        ax.set_ylim(-ylim, ylim)
+        ax.grid(alpha=.25)
         ax.set_xlabel('Time (min)', fontsize=FS_LAB)
-        ax.set_ylabel('Drift, offset by block (µm)', fontsize=FS_LAB)
-        # a scale bar, since the y axis is offset rather than metric
-        x0 = t[-1] * 1.055
-        ax.plot([x0, x0], [0, ROW_PITCH_UM], color=INK, lw=2.4,
-                solid_capstyle='butt', clip_on=False)
-        ax.text(x0 * 1.008, ROW_PITCH_UM / 2, '20 µm\n(one row)',
-                fontsize=FS_LEG - 1, va='center', ha='left', color=INK,
-                linespacing=1.25)
+        ax.set_ylabel('dshift (µm)', fontsize=FS_LAB)
         r = float(range_90(d))
         ax.set_title(f'{lab}.  {"lowest" if lab == "A" else "highest"} drift'
                      f'  —  range$_{{90}}$ {r:.1f} µm',
                      loc='left', fontsize=FS_TITLE, weight='bold', color=INK,
                      pad=24)
-        # under the title, not inside the axes -- in the axes it landed on
-        # block 8's trace, which is where the top of the stack always is
         ax.text(0, 1.012, f"{spec['name']}   ·   {t[-1]:.1f} min, "
                           f"{d.shape[1]} blocks, single bank",
                 transform=ax.transAxes, ha='left', va='bottom',
                 fontsize=FS_ANN, color=MUTED)
-        for s in ax.spines.values():
-            s.set_color(GREY)
+        if k == 0:
+            ax.text(.985, .04, 'one line per drift block, shallow → deep;\n'
+                               'shaded band = one 20 µm row',
+                    transform=ax.transAxes, ha='right', va='bottom',
+                    fontsize=FS_LEG, color=MUTED, linespacing=1.3)
+        # NO COLOURBAR. One per panel crowded both and its label sat on B's
+        # y axis; a single shared one still costs width that the traces want.
+        # The ramp is self-evident once the caption names its direction.
+        for sp_ in ax.spines.values():
+            sp_.set_color(GREY)
 
     # ---- C and D: the corpus, as in Fig_Drift_vs_RecDuration_SB ------------
     r90 = np.array([r['mean_r90'] for r in rows], float)
