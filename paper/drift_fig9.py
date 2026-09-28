@@ -66,16 +66,16 @@ def _traces(ax, ks_dir, title, colour, batch_s=2.0):
     return d, nb, t, centred
 
 
-def make_single_bank_figure(low, high, rows, out_path):
-    """low/high: dicts with name + ks_dir. rows: the drift_v2_sb session list."""
+def draw_single_bank_row(fig, axes, low, high, rows):
+    """The three single-bank panels, into three axes someone else owns.
+
+    Split out of make_single_bank_figure so Figure 9 can put this row above the
+    multi-bank mechanism row and still be ONE figure.
+    """
     from scipy import stats
     from unitassay.drift.metrics import load_dshift, range_90
     plt = _style()
-
-    fig = plt.figure(figsize=(15.5, 10.0))
-    gs = fig.add_gridspec(2, 2, hspace=.36, wspace=.20,
-                          height_ratios=[1.0, .92],
-                          left=.065, right=.985, top=.915, bottom=.072)
+    _ax = iter(axes)
 
     # ---- A and B: the traces themselves ------------------------------------
     d_lo = load_dshift(low['ks_dir'])
@@ -92,7 +92,7 @@ def make_single_bank_figure(low, high, rows, out_path):
     import matplotlib.pyplot as _plt
     ylim = float(np.percentile(np.abs(hi_c), 99.5)) * 1.25
     for k, (spec, d, lab) in enumerate(((low, d_lo, 'A'), (high, d_hi, 'B'))):
-        ax = fig.add_subplot(gs[0, k])
+        ax = next(_ax)
         c = d - np.median(d, axis=0, keepdims=True)
         t = np.arange(d.shape[0]) * 2.0 / 60.0
         from matplotlib.colors import LinearSegmentedColormap
@@ -148,22 +148,37 @@ def make_single_bank_figure(low, high, rows, out_path):
     clean = np.array([r['clean'] for r in rows], bool)
     nc, ne = int(clean.sum()), int((~clean).sum())
 
-    axc = fig.add_subplot(gs[1, :])
+    axc = next(_ax)
+    # BOTH SETS SHOWN, FIT ON CLEAN ONLY (Agrita). Hiding the artifact
+    # sessions makes the corpus look tidier than it is; including them in the
+    # fit would let a handful of mechanical incidents set the slope. They are
+    # drawn as open triangles so a reader can see how few there are and how
+    # far out they sit -- the incident supplementary accounts for them.
+    axc.scatter(dur[~clean], r90[~clean], s=72, marker='^', facecolor='none',
+                edgecolor=GREY, lw=1.2, zorder=2,
+                label=f'artifact-flagged ({ne}) — excluded from the fit')
     axc.scatter(dur[clean], r90[clean], s=64, color=LOW, alpha=.75,
-                edgecolor='white', lw=.6, zorder=3)
+                edgecolor='white', lw=.6, zorder=3,
+                label=f'clean ({nc}) — fitted')
     sl, ic = np.polyfit(dur[clean], r90[clean], 1)
     xs = np.linspace(dur[clean].min(), dur[clean].max(), 20)
     axc.plot(xs, sl * xs + ic, '--', color='#c2410c', lw=2.4, zorder=4)
     rc, pc = stats.pearsonr(dur[clean], r90[clean])
-    axc.text(.985, .04, f'N={nc} clean sessions   ({ne} artifact-flagged excluded)\n'
+    # upper right: the legend holds the lower left and the artifact triangles
+    # hold the upper left, so this is the only corner left
+    axc.text(.985, .96, f'fit on the {nc} clean sessions\n'
                         f'r={rc:+.2f}   p={pc:.3f}   slope={sl:.2f} µm/min',
-             transform=axc.transAxes, ha='right', va='bottom', fontsize=FS_ANN,
+             transform=axc.transAxes, ha='right', va='top', fontsize=FS_ANN,
              color=MUTED, linespacing=1.35)
+    axc.margins(y=.14)
     axc.axhline(ROW_PITCH_UM, color='#0AAA4B', lw=1.6, ls='--')
     axc.text(.012, ROW_PITCH_UM * 0.955, 'one 20 µm row',
              transform=axc.get_yaxis_transform(), ha='left', va='top',
              fontsize=FS_LEG, color='#0AAA4B')
-    axc.set_ylim(0, max(r90[clean].max() * 1.08, ROW_PITCH_UM * 1.12))
+    # log y: the artifact sessions reach 117 um and would flatten everything
+    # else onto the axis
+    axc.set_yscale('log')
+    axc.legend(fontsize=FS_LEG, frameon=False, loc='lower left')
     axc.set_xlabel('Recording duration (min)', fontsize=FS_LAB)
     axc.set_ylabel('range$_{90}$ (µm)', fontsize=FS_LAB)
     axc.set_title('C.  no growth detected with recording length',
@@ -172,6 +187,20 @@ def make_single_bank_figure(low, high, rows, out_path):
     for sp_ in axc.spines.values():
         sp_.set_color(GREY)
 
+    return dict(fit_r=float(rc), fit_p=float(pc), fit_slope=float(sl),
+                n_clean=nc, n_flagged=ne)
+
+
+def make_single_bank_figure(low, high, rows, out_path):
+    """The single-bank row on its own, for checking it in isolation."""
+    plt = _style()
+    fig = plt.figure(figsize=(15.5, 10.0))
+    gs = fig.add_gridspec(2, 2, hspace=.36, wspace=.20,
+                          height_ratios=[1.0, .92],
+                          left=.065, right=.985, top=.915, bottom=.072)
+    axes = [fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1]),
+            fig.add_subplot(gs[1, :])]
+    draw_single_bank_row(fig, axes, low, high, rows)
     out_path = str(out_path)
     fig.savefig(out_path, facecolor='white')
     for ext in ('.png', '.pdf'):
