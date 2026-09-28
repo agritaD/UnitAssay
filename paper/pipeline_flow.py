@@ -20,6 +20,7 @@ INK, MUTED, GREY = '#0D1B4B', '#546E7A', '#9aa7b4'
 UP_EDGE, UP_FILL = '#8794A5', '#F1F3F6'      # upstream: someone else's code
 UA_EDGE, UA_FILL = '#14213D', '#E8ECF3'      # ours
 OUT_EDGE, OUT_FILL = '#12695A', '#E3F0EC'
+RAW_EDGE, RAW_FILL = '#5C6B7A', '#FFFFFF'    # an input, not a processing step
 BAND = '#F7F9FC'
 
 
@@ -35,7 +36,7 @@ def _style():
     return plt
 
 
-def make_panel_a(steps, group, footer, out_path, width_in=13.0, height_in=3.5):
+def make_panel_a(steps, group, footer, out_path, width_in=15.0, height_in=3.5):
     """`steps` is a list of dicts: name, what, time, res, kind."""
     plt = _style()
     from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
@@ -60,8 +61,8 @@ def make_panel_a(steps, group, footer, out_path, width_in=13.0, height_in=3.5):
     ax.text((gx0 + gx1) / 2, y0 + bh + 0.090, group['label'], ha='center',
             va='bottom', fontsize=12.5, weight='bold', color=UA_EDGE, zorder=5)
 
-    C = {'up': (UP_EDGE, UP_FILL), 'ua': (UA_EDGE, UA_FILL),
-         'out': (OUT_EDGE, OUT_FILL)}
+    C = {'raw': (RAW_EDGE, RAW_FILL), 'up': (UP_EDGE, UP_FILL),
+         'ua': (UA_EDGE, UA_FILL), 'out': (OUT_EDGE, OUT_FILL)}
     for x, s in zip(xs, steps):
         edge, fill = C[s['kind']]
         ax.add_patch(FancyBboxPatch((x, y0), bw, bh,
