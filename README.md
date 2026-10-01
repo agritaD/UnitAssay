@@ -222,8 +222,7 @@ curation at the same rate), and it removes the duplicate identities a matcher
 would otherwise have to rediscover — 2,477 clusters sorted separately collapse to
 1,377 sorted together. **So: concatenate, do not stitch.** The slot is reused for
 drift, which is where the measurements actually landed. The `link/`
-directory is still an empty placeholder, and the specification lives in the
-research repository rather than here.
+placeholder was removed on 2026-10-01.
 
 ## What a row tells you
 

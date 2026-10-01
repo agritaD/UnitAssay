@@ -26,8 +26,8 @@ writes the standard Phy-style arrays):
     The third slot was `link` (matching units across recordings) until
     2026-09-11, when concatenating consecutive recordings was measured to cost
     nothing at the join AND to remove the duplicates a matcher would have had
-    to rediscover. Concatenate, do not stitch. The `link/` directory is still
-    an empty placeholder, and the spec lives in the research repository.
+    to rediscover. Concatenate, do not stitch. The `link/` placeholder was
+    removed on 2026-10-01.
 
     >>> from unitassay import curate
     >>> rows = curate.curate_session(ks4_dir, isolation_dir='isolation')
