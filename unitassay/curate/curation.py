@@ -98,6 +98,32 @@ from unitassay.screen.config import IsolationConfig as _IsoCfg   # noqa: E402
 SHAPE_SIM = _IsoCfg().noise_shape_sim_threshold
 
 
+def between_verdict(dp, lr):
+    """Are two clusters separated, given the between-cluster dip p and L-ratio?
+
+    True = separated, False = not separated, None = the test could not run
+    (a statistic is missing or non-finite).
+
+    A CONFLICT IS DECIDED BY THE L-RATIO (Agrita, 2026-10-01). The within-cluster
+    test has given the L-ratio precedence since 2026-09-03 (_apply_rules remaps
+    `ambiguous`; against ground truth the L-ratio was right 256/273, the dip
+    17/273), but this between-cluster test was never brought in line: it returned
+    None on a conflict, which rule 5 reads as "evidence incomplete" (5d).
+    Measured on the 147 (m261001_5d_diagnosis.py): 2,518 of the 3,403 5d clusters
+    were exactly this conflict -- 1,802 dip-only, 716 L-ratio-only. None is now
+    reserved for a test that could not run.
+
+    Consequence, stated so it is not rediscovered: with precedence, the verdict
+    IS the L-ratio's whenever both statistics exist. The dip still gates nothing
+    here; rule 5's retrieval additionally requires the time-domain CCG gate,
+    which is the independent evidence (feature-space pair evidence alone is at
+    chance, AUC 0.50).
+    """
+    if dp is None or lr is None or not (np.isfinite(dp) and np.isfinite(lr)):
+        return None
+    return bool(lr < L_RATIO_THRESH)
+
+
 def _sample_rate(ks4_dir, default=30000.0):
     """KS4 writes it to params.py. MEArec sorts are 32 kHz, real ones 30 kHz,
     and getting this wrong rescales every ISI in the pipeline."""
@@ -361,14 +387,7 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
             res = dip_lratio_between(fa, fb, min_group_spikes=MIN_GROUP_SPIKES)
         except Exception:
             return None
-        dp, lr = res.get('dip_pval'), res.get('l_ratio')
-        if dp is None or lr is None or not (np.isfinite(dp) and np.isfinite(lr)):
-            return None
-        if dp < DIP_PVAL_THRESH and lr < L_RATIO_THRESH:
-            return True
-        if dp >= DIP_PVAL_THRESH and lr >= L_RATIO_THRESH:
-            return False
-        return None                      # the two statistics conflict
+        return between_verdict(res.get('dip_pval'), res.get('l_ratio'))
 
     # RAW SAMPLES, not milliseconds. compute_ccg's docstring says "spike times
     # in RAW SAMPLES (divided by fs internally)", so handing it st_ms silently
