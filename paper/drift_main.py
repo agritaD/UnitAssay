@@ -1,4 +1,4 @@
-"""Figure 9 (drift), main panels.
+"""Figure 3 (drift; was Figure 9 before V9), main panels.
 
 B  the calibration    what KS4's number means, measured against known truth
 C  the prevalence     how much drift is actually in this corpus

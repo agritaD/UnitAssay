@@ -250,7 +250,7 @@ def write_exemplar_candidates(corpus_dir, out_json, **kw):
 # ---------------------------------------------------------------------------
 # Over-splitting has TWO faces in real data, and the figure shows both.
 #
-# Figure 3A's over-split example has a refractory DIP at zero lag: one neuron's
+# Figure 4A's (error types; Figure 3A before V9) over-split example has a refractory DIP at zero lag: one neuron's
 # spikes cut in two, so the real cell's refractory period forbids an A spike
 # and a B spike landing 1 ms apart. That is the mechanism the word names.
 #

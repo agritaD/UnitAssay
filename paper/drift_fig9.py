@@ -1,4 +1,4 @@
-"""Figure 9, single-bank half: what the drift traces look like, and the corpus.
+"""Figure 3 (drift; was Figure 9 before V9), single-bank half: what the drift traces look like, and the corpus.
 
 A  a quiet single-bank recording, all 9 blocks
 B  a single-bank recording of similar length with more drift
@@ -86,7 +86,7 @@ def _traces(ax, ks_dir, title, colour, batch_s=2.0):
 def draw_single_bank_row(fig, axes, low, high, rows):
     """The three single-bank panels, into three axes someone else owns.
 
-    Split out of make_single_bank_figure so Figure 9 can put this row above the
+    Split out of make_single_bank_figure so Figure 3 can put this row above the
     multi-bank mechanism row and still be ONE figure.
     """
     from scipy import stats
@@ -231,7 +231,7 @@ def make_single_bank_figure(low, high, rows, out_path):
 
 
 # ---------------------------------------------------------------------------
-# Figure 9 as one row of examples plus the population, all single bank.
+# Figure 3 as one row of examples plus the population, all single bank.
 #
 # SINGLE BANK THROUGHOUT, and that is what lets the multi-bank mechanism go to
 # supplementary cleanly: a single-bank probe has no inter-bank gap, so bug 5

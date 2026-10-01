@@ -43,28 +43,37 @@ verdict is recorded as declined rather than as clean.
 __version__ = '0.1.0'
 
 
-def code_commit():
-    """The git commit this package is running from, '+dirty' if the tree has
-    uncommitted changes; None outside a git checkout (an installed wheel).
+def code_commit(repo=None, package='unitassay'):
+    """The git commit this package is running from; '+dirty' ONLY if the
+    PACKAGE ITSELF has uncommitted or untracked (non-ignored) changes; None
+    outside a git checkout (an installed wheel).
 
     Stamped into every curated.json (2026-10-01): `version` alone stayed 0.1.0
     across every rule change since September, so no output could be traced to
     the code that produced it.
+
+    SCOPED TO THE PACKAGE (2026-10-01). The first version asked about the WHOLE
+    repository, so editing a figure script in paper/ during a run stamped 141
+    of 147 sessions '+dirty' although not one package file had changed. A
+    stamp must describe the code that ran, and paper/, tests/ and docs are not
+    that code. Agrita: "there should not be dirty or ambiguous tag".
     """
     import subprocess
     from pathlib import Path
-    repo = Path(__file__).resolve().parent.parent
+    repo = Path(repo) if repo is not None else Path(__file__).resolve().parent.parent
     try:
         h = subprocess.run(['git', '-C', str(repo), 'rev-parse', '--short', 'HEAD'],
                            capture_output=True, text=True, timeout=10)
         if h.returncode != 0:
             return None
         d = subprocess.run(['git', '-C', str(repo), 'status', '--porcelain',
-                            '--untracked-files=no'],
+                            '--', package],
                            capture_output=True, text=True, timeout=10)
         return h.stdout.strip() + ('+dirty' if d.stdout.strip() else '')
     except Exception:
         return None
+
+
 __author__ = 'Agrita Dubey, Qiao (Betty) Xu'
 __license__ = 'MIT'
 
