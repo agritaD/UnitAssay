@@ -499,8 +499,8 @@ EVIDENCE = {
     '5a feature space': 'neighbour comparison',
     '5b coincidence excess': 'neighbour comparison',
     '5c refractory deficit': 'neighbour comparison',
-    '5d evidence incomplete': 'neighbour comparison',
-    '8 unattributed': 'measured, not attributable',
+    '5d neighbour not cleared': 'neighbour comparison',
+    '8 stability below 60%': 'per-frame stability',
 }
 
 
@@ -522,7 +522,10 @@ def verdicts_resting_on_screen(corpus):
     for p in sorted(corpus.glob('*/curated.json')):
         for r in json.loads(p.read_text())['rows']:
             total += 1
-            lab = r.get('rule_label') or r.get('rule')
+            # the label is DERIVED from the rule, never read from the stored
+            # row, so a run made before a rename is still read correctly
+            from unitassay.curate.decision_flow import rule_label
+            lab = rule_label(r['rule']) if r.get('rule') is not None else r.get('rule_label')
             kind[EVIDENCE.get(lab, 'decided without the screen')] += 1
             cls[r.get('error_class')] += 1
     on_screen = total - kind['decided without the screen']

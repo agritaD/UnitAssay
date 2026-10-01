@@ -148,6 +148,17 @@ STAGE = {
 # feature-space test and differ only in how the cluster reached it. The legacy
 # id stays as the internal key -- 14 scripts select on it with startswith() --
 # but nothing shown to a reader should use it.
+# LABELS RENAMED 2026-10-01 (Agrita; the three-decision rule leaves no
+# "pending"/"untested" state, so no label may name one):
+#   4b  'evidence incomplete' -> 'reference not cleared'
+#   5d  'evidence incomplete' -> 'neighbour not cleared'
+#   8   'unattributed' / FALL-THROUGH -> 'stability below 60%' / STABILITY
+#       -- verified on the 147 (69d20fa): all 726 rule-8 clusters have isolation
+#       stability < 0.6 (median 0.14) with no L-ratio window over threshold and
+#       the independent ISI check passed, so stability IS the failing criterion.
+#   6   ('no verdict', UNRESOLVED) fires 0 times and is NOT DRAWN in figures;
+#       FIGURE_RULES below is the set a figure may show.
+# Only labels changed; the legacy keys are frozen (see above).
 RULE_ID = {
     'R': ('1', 'overlap and lag'),
     '0': ('2', 'refractory ratio'),
@@ -155,7 +166,7 @@ RULE_ID = {
     '1-drift': ('3b', 'time-ordered split'),
     '4': ('4a', 'reference channel'),
     '7-within': ('4a', 'reference channel'),
-    '3-pending': ('4b', 'evidence incomplete'),
+    '3-pending': ('4b', 'reference not cleared'),
     '5': ('5a', 'feature space'),
     '5-all': ('5a', 'feature space'),
     '7-neighbor': ('5a', 'feature space'),
@@ -163,22 +174,25 @@ RULE_ID = {
     '7-neighbor-all': ('5a', 'feature space'),
     '5-ccg': ('5b', 'coincidence excess'),
     '5-ccg-deficit': ('5c', 'refractory deficit'),
-    '5-pending': ('5d', 'evidence incomplete'),
-    '5-all-pending': ('5d', 'evidence incomplete'),
-    '5-ccg-pending': ('5d', 'evidence incomplete'),
-    '5-pending-isi': ('5d', 'evidence incomplete'),
+    '5-pending': ('5d', 'neighbour not cleared'),
+    '5-all-pending': ('5d', 'neighbour not cleared'),
+    '5-ccg-pending': ('5d', 'neighbour not cleared'),
+    '5-pending-isi': ('5d', 'neighbour not cleared'),
     '7': ('6', 'no verdict'),
     '8': ('6', 'no verdict'),
     '2': ('7', 'all rules passed'),
-    'other': ('8', 'unattributed'),
-    'other-pending': ('8', 'unattributed'),
+    'other': ('8', 'stability below 60%'),
+    'other-pending': ('8', 'stability below 60%'),
 }
 
 RULE_TITLE = {
     '1': 'IDENTITY', '2': 'REFRACTORY', '3': 'COMPOSITION',
     '4': 'CONTAMINATION', '5': 'NEIGHBOUR', '6': 'UNRESOLVED',
-    '7': 'CLEAN', '8': 'FALL-THROUGH',
+    '7': 'CLEAN', '8': 'STABILITY',
 }
+
+# the rules a figure draws: rule 6 never fires and is omitted (Agrita, 2026-10-01)
+FIGURE_RULES = ('1', '2', '3', '4', '5', '7', '8')
 
 
 def rule_id(rule):

@@ -447,22 +447,27 @@ def presence_contrast(times, duration_s=None, bin_s=30.0):
 # The stations are in FLOW order, which is not the order the legacy ids were
 # assigned in -- those number the order the problems were found.
 
+# rule 6 never fires and is not drawn (decision_flow.FIGURE_RULES, 2026-10-01)
 SIEVE_ORDER = ('1', '2', '3a', '3b', '4a', '4b', '5a', '5b', '5c', '5d',
-               '6', '7', '8')
+               '7', '8')
+# Renamed rules take their text from decision_flow -- ONE definition of a label
+# (Agrita 2026-10-01: 4b/5d no longer 'evidence incomplete', 8 no longer
+# 'unattributed'). The other names here are figure wording, kept as drawn.
+from unitassay.curate.decision_flow import RULE_ID as _RULE_ID  # noqa: E402
+_LABEL = {rid: lab for rid, lab in _RULE_ID.values()}
 SIEVE_NAME = {
     '1': 'already counted\nunder another cluster',
     '2': 'refractory ratio',
     '3a': 'two populations\ninside it',
     '3b': 'time-ordered split',
     '4a': 'not separable from\nits reference channel',
-    '4b': 'evidence incomplete',
+    '4b': _LABEL['4b'],
     '5a': 'separable from\nits neighbours',
     '5b': 'coincidence excess',
     '5c': 'refractory deficit',
-    '5d': 'evidence incomplete',
-    '6': 'no verdict',
+    '5d': _LABEL['5d'],
     '7': 'all rules passed',
-    '8': 'unattributed',
+    '8': _LABEL['8'],
 }
 
 
@@ -483,8 +488,10 @@ def sieve_flow(corpus_dir):
             rid = str(row.get('rule_id') or rule_id(row.get('rule')))
             if rid not in fail:
                 raise KeyError(f'rule {rid} is not placed in SIEVE_ORDER')
-            if set(row.get('findings') or ()) == {'low_spike'}:
-                untestable[rid] += 1        # see decision_flow_counts
+            # THREE DECISIONS (unitassay 69d20fa): the third outcome IS the
+            # decision, not a reading of the findings
+            if row.get('decision') == 'LOW_SPIKE_COUNT':
+                untestable[rid] += 1
             else:
                 (pas if row.get('decision') == 'PASS' else fail)[rid] += 1
 
@@ -544,7 +551,9 @@ def decision_flow_counts(corpus_dir):
             # The testable question is about the FINDINGS: a cluster nothing
             # else fired on, that is too small to test, has had no verdict
             # rendered on it and must not be counted as a pass.
-            if set(row.get('findings') or ()) == {'low_spike'}:
+            # THREE DECISIONS (unitassay 69d20fa): LOW_SPIKE_COUNT is the
+            # decision itself, so the figure counts exactly what the tool emits
+            if row.get('decision') == 'LOW_SPIKE_COUNT':
                 d = untestable
             else:
                 d = pas if row.get('decision') == 'PASS' else fail
@@ -555,8 +564,7 @@ def decision_flow_counts(corpus_dir):
             # fall-through differs from an attributed failure
             sp_ = bool(row.get('screen_pass'))
             screen[sp_] += 1
-            if (row.get('decision') == 'PASS' and not sp_
-                    and set(row.get('findings') or ()) != {'low_spike'}):
+            if row.get('decision') == 'PASS' and not sp_:
                 rescued += 1
             ecl = row.get('error_class') or 'unclassified'
             classes.setdefault(stg, {})

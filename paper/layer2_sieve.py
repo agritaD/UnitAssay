@@ -29,12 +29,15 @@ INK = '#111418'
 GREY = '#5B6470'
 
 
+# renamed rules come from decision_flow (one definition); rule 6 is not drawn
+from unitassay.curate.decision_flow import RULE_ID as _RULE_ID  # noqa: E402
+_LABEL = {rid: lab for rid, lab in _RULE_ID.values()}
 SHORT = {'1': 'already counted', '2': 'refractory ratio',
          '3a': 'two populations', '3b': 'time-ordered split',
-         '4a': 'reference channel', '4b': 'evidence incomplete',
+         '4a': 'reference channel', '4b': _LABEL['4b'],
          '5a': 'separable from\nneighbours', '5b': 'coincidence excess',
-         '5c': 'refractory deficit', '5d': 'evidence incomplete',
-         '6': 'no verdict', '7': 'all rules passed', '8': 'unattributed'}
+         '5c': 'refractory deficit', '5d': _LABEL['5d'],
+         '7': 'all rules passed', '8': _LABEL['8']}
 
 
 def make_sieve(flow, out_path, width_in=15.2, height_in=4.0):

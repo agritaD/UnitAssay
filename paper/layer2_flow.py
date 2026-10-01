@@ -94,8 +94,8 @@ METRIC = {
 VERDICT = {'1-identity': 'duplicate', '2-refractory': 'over-split',
            '3-composition': 'over-merge / over-split',
            '4-contamination': 'contaminated',
-           '5-neighbour': 'not separable', '6-unresolved': 'no verdict',
-           '7-clean': 'clean', '8-fall-through': 'unattributed'}
+           '5-neighbour': 'not separable',
+           '7-clean': 'clean', '8-fall-through': 'stability below 60%'}
 
 
 def make_decision_flow(flow, out_path, width_in=7.6, height_in=10.4):
