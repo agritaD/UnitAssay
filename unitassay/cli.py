@@ -138,8 +138,10 @@ def main(argv=None):
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     rows, timing, pairs = run_session(a.ks_dir, out, a.window_sec, a.n_threads,
                                       reuse_isolation=a.reuse_isolation)
+    from unitassay import __version__, code_commit
     (out / 'curated.json').write_text(json.dumps(
-        {'ks_dir': str(a.ks_dir), 'timing': timing, 'rows': rows}, default=float))
+        {'version': __version__, 'commit': code_commit(), 'ks_dir': str(a.ks_dir),
+         'timing': timing, 'rows': rows}, default=float))
     (out / 'pairs.json').write_text(json.dumps(
         {'ks_dir': str(a.ks_dir), 'summary': summarise_pairs(pairs),
          'pairs': pairs}, default=float))

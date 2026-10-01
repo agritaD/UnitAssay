@@ -31,8 +31,9 @@ GOLDEN = {
     1: (650, 'PASS', '7', 'clean'),
     # 12% of its ISIs are inside the refractory window, by construction
     2: (600, 'FAIL', '2', 'oversplit'),
-    # under the 240-spike floor: a verdict is returned, but named for what it is
-    3: (120, 'PASS', '7', 'low_spike_count'),
+    # under the 240-spike floor: LOW_SPIKE_COUNT whatever the rules said
+    # (Agrita 2026-10-01, option i; it was PASS-labelled-low_spike before)
+    3: (120, 'LOW_SPIKE_COUNT', '7', 'low_spike_count'),
 }
 
 REQUIRED = ('spike_times.npy', 'spike_clusters.npy', 'spike_templates.npy',
@@ -155,3 +156,26 @@ def test_a_run_emits_no_warnings(tmp_path):
     ours = [w for w in caught
             if 'unitassay' in str(getattr(w, 'filename', ''))]
     assert not ours, [f'{w.category.__name__}: {w.message}' for w in ours]
+
+
+def test_every_row_has_one_of_three_decisions_and_a_matching_class(result):
+    """PASS / FAIL / LOW_SPIKE_COUNT and nothing else; the class always agrees.
+
+    Agrita, 2026-10-01: "I don't want anything to be ambiguous or untested --
+    we have pass, fail and low-spike count." Before this, 132 real clusters were
+    FAIL with error_class `clean`, and 2,613 PASSed under the spike floor.
+    """
+    from unitassay.curate.taxonomy import DECISIONS
+    from unitassay.curate.constants import LOW_SPIKE_THRESHOLD
+    rows, _timing, _out, _pairs = result
+    for c, r in rows.items():
+        assert r['decision'] in DECISIONS, (c, r['decision'])
+        assert 'needs_inspection' not in r, c
+        low = r['n_spikes'] < LOW_SPIKE_THRESHOLD
+        assert (r['decision'] == 'LOW_SPIKE_COUNT') == low, c
+        if r['decision'] == 'PASS':
+            assert r['error_class'] == 'clean', c
+        elif r['decision'] == 'FAIL':
+            assert r['error_class'] not in ('clean', 'low_spike_count', 'unattributed'), c
+        else:
+            assert r['error_class'] == 'low_spike_count', c

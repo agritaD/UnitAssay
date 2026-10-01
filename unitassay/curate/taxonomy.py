@@ -788,7 +788,55 @@ def curate_and_classify(records):
         r['findings'] = sorted(f['fired'])
         r['untested_channels'] = sorted(f['untested'])
         r['error_class'] = error_class(f)
+        assign_outcome(r)
     return records
+
+
+# THREE DECISIONS, NOTHING ELSE (Agrita, 2026-10-01): "I don't want anything to
+# be ambiguous or untested etc -- we have pass, fail and low-spike count."
+# `decision` itself carries the three values (option (a)): ONE field for the
+# result, so there is one pass number. The rule engine's own binary call is
+# still recoverable from `rule` / `rule_id`.
+DECISIONS = ('PASS', 'FAIL', 'LOW_SPIKE_COUNT')
+
+# A FAIL that no finding names is classed by the STAGE that rejected it, using
+# the same outcome mapping findings.OUTCOME_PRIORITY uses (measured purity).
+_STAGE_CLASS = {'1-identity': 'duplicate', '2-refractory': 'oversplit',
+                '3-composition': 'mixed_cluster', '4-contamination': 'oversplit',
+                '5-neighbour': 'oversplit', '6-unresolved': 'intermittent_presence',
+                '8-fall-through': 'intermittent_presence'}
+
+
+def assign_outcome(r):
+    """Make r['decision'] three-valued and r['error_class'] agree with it. In place.
+
+    * under LOW_SPIKE_THRESHOLD spikes -> LOW_SPIKE_COUNT, whatever the rules
+      decided: below the floor the composition test cannot run, and a cluster
+      that small cannot be used as a unit either way (option i, 2026-10-01).
+    * otherwise the rule engine's PASS or FAIL.
+    * PASS is always `clean`; LOW_SPIKE_COUNT always `low_spike_count`; FAIL is
+      always a named error, never `clean` -- that contradiction is how 132 real
+      clusters read as clean FAILs before 2026-10-01.
+
+    `needs_inspection` is the rule engine's internal overlay; it is removed from
+    the emitted row so the output carries no "pending" state at all.
+    """
+    from unitassay.curate.decision_flow import stage_of
+    n = r.get('n_spikes')
+    if n is None:
+        raise ValueError(f'cluster {r.get("clu_id")}: n_spikes is required to '
+                         'assign a decision')
+    if n < LOW_SPIKE_THRESHOLD:
+        r['decision'], r['error_class'] = 'LOW_SPIKE_COUNT', 'low_spike_count'
+    elif r['decision'] == 'PASS':
+        r['error_class'] = 'clean'
+    elif r['decision'] == 'FAIL':
+        if r['error_class'] in ('clean', 'low_spike_count'):
+            r['error_class'] = _STAGE_CLASS[stage_of(r['rule'])]
+    else:
+        raise ValueError(f'cluster {r.get("clu_id")}: decision {r["decision"]!r}')
+    r.pop('needs_inspection', None)
+    return r
 
 
 def classify_all(records):

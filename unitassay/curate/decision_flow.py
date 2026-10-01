@@ -590,8 +590,10 @@ def _apply_rules(r):
             # ABSENT IS NOT AFFIRMATIVE. None means some accuser could not be
             # adjudicated, so nothing cleared it -- that cannot support a
             # retrieval, and the cluster goes to the pending bucket rather than
-            # passing. Measured n=0 on the 50-session set under both accuser
-            # criteria, so this branch is defensive, not load-bearing.
+            # passing. LOAD-BEARING, not defensive: this comment once said n=0
+            # (true of the 50-session set it was measured on). On the 147 it
+            # fired 231 times before between-cluster conflicts were decided by
+            # the L-ratio (e17905f) and 13 times after.
             all_sep = r.get('between_all_neighbours_separated', _MISSING)
             assert all_sep is not _MISSING, (
                 'curate(): between_all_neighbours_separated is required to reach '

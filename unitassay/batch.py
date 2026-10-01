@@ -62,8 +62,9 @@ def read_sessions(path):
 
 def _one(args):
     name, ks_dir, out_root, window_sec, n_threads = args
-    from unitassay import __version__
+    from unitassay import __version__, code_commit
     from unitassay.cli import run_session
+    commit = code_commit()
 
     dest = Path(out_root) / name
     done = dest / 'curated.json'
@@ -71,7 +72,9 @@ def _one(args):
         try:
             d = json.loads(done.read_text())
             iso_ok = any((dest / 'isolation').glob('*.SortData.h5'))
-            if d.get('version') == __version__ and iso_ok:
+            # resume only a result from THIS code: same version AND same commit
+            if (d.get('version') == __version__ and d.get('commit') == commit
+                    and commit is not None and not commit.endswith('+dirty') and iso_ok):
                 return name, d['timing'], 'resumed'
         except Exception:
             pass
@@ -86,8 +89,8 @@ def _one(args):
         return name, None, f'FAILED {type(e).__name__}'
     (dest / 'error.json').unlink(missing_ok=True)      # a retry that succeeded
     done.write_text(json.dumps(
-        {'version': __version__, 'session': name, 'ks_dir': str(ks_dir),
-         'timing': timing, 'rows': rows}, default=float))
+        {'version': __version__, 'commit': commit, 'session': name,
+         'ks_dir': str(ks_dir), 'timing': timing, 'rows': rows}, default=float))
     from unitassay.curate import summarise_pairs
     (dest / 'pairs.json').write_text(json.dumps(
         {'session': name, 'summary': summarise_pairs(pairs), 'pairs': pairs},

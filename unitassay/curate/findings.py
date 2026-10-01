@@ -381,8 +381,12 @@ def error_class(f):
     """One outcome for reporting, from a finding set. `fired` keeps the rest."""
     for name, out in OUTCOME_PRIORITY:
         if name in f['fired']:
-            # the annotation NAMES an unattributed failure; it never creates one
-            if out == 'unattributed' and f['annotations'].get('intermittent'):
+            # `unattributed_ms_fail` is the screen failing on a cluster whose
+            # L-ratio passed -- i.e. isolation NOT MAINTAINED OVER TIME, which is
+            # exactly the paper's intermittent presence (Fig 4D). Reported as such
+            # whether or not the coverage annotation also fired: no outcome may be
+            # "unattributed" (Agrita, 2026-10-01).
+            if out == 'unattributed':
                 return 'intermittent_presence'
             return out
     return 'clean'

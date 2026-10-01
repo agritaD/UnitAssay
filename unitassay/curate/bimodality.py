@@ -341,12 +341,9 @@ SEPARATION_STATES = ('separated', 'not_separated', 'conflicting', 'untested')
 _WITHIN_NAMES = {'separated': 'overmerged', 'not_separated': 'not_overmerged',
                  'conflicting': 'ambiguous', 'untested': 'untested'}
 
-# BETWEEN-cluster reading of the SAME result: two DIFFERENT clusters separating
-# means they are genuinely distinct units -- a PASS. Same statistics, opposite
-# consequence.
-_BETWEEN_NAMES = {'separated': 'confirmed_separate',
-                  'not_separated': 'indistinguishable',
-                  'conflicting': 'conflicting', 'untested': 'untested'}
+# The BETWEEN-cluster reading lives in curation.between_separated (True/False/
+# None, L-ratio precedence on a conflict); its old name table went with the
+# retired between_verdict helper, 2026-10-01.
 
 
 def separation_verdict(dip_pval, l_ratio, dip_thresh=DIP_PVAL_THRESH,
@@ -364,7 +361,7 @@ def separation_verdict(dip_pval, l_ratio, dip_thresh=DIP_PVAL_THRESH,
     inverting it, or re-deriving the thresholds inline. One name with opposite
     meanings in two contexts is how a mislabelled figure gets made months later.
     Use this and name the consequence yourself, or use verdict() /
-    between_verdict(), which name it for the two known contexts.
+    within_verdict(), which names it for the within-cluster context.
     """
     if np.isnan(dip_pval) or np.isnan(l_ratio):
         return 'untested'
@@ -390,18 +387,10 @@ def verdict(dip_pval, l_ratio, dip_thresh=DIP_PVAL_THRESH, l_thresh=L_RATIO_THRE
                                            l_thresh=l_thresh)]
 
 
-def between_verdict(dip_pval, l_ratio, dip_thresh=DIP_PVAL_THRESH,
-                    l_thresh=L_RATIO_THRESH):
-    """BETWEEN-cluster naming: 'confirmed_separate' | 'indistinguishable' |
-    'conflicting' | 'untested'.
-
-    Exists so between-cluster callers stop importing `verdict` and reading
-    "overmerged" to mean "these two clusters are distinct" -- the inversion #25
-    is about.
-    """
-    return _BETWEEN_NAMES[separation_verdict(dip_pval, l_ratio,
-                                             dip_thresh=dip_thresh,
-                                             l_thresh=l_thresh)]
+# `between_verdict` (a naming helper returning 'conflicting' for a dip/L-ratio
+# conflict) was RETIRED 2026-10-01: nothing called it, and since between-cluster
+# conflicts are decided by the L-ratio (curation.between_separated) a name for
+# "conflicting" describes a state the tool no longer produces.
 
 
 # ── KNOWN FAILURE MODE of universal_dip_verdict, measured 2026-08-12 ─────

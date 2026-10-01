@@ -10,8 +10,9 @@ writes the standard Phy-style arrays):
     screen    per-frame isolation quality — the L-ratio of each unit against a
               shape-dissimilar reference channel and against each neighbouring
               cluster, written as one SortData.h5 per cluster
-    curate    eight rules that decide keep/reject, a taxonomy that names the
-              mechanism, and a findings layer that names the ERROR CLASS
+    curate    five tests and three evidence guards that decide each cluster's
+              OUTCOME -- PASS, FAIL or LOW_SPIKE_COUNT, nothing else -- and a
+              findings layer that names the ERROR CLASS of every FAIL
     drift     quantify and calibrate the drift KS4 reports, and FLAG A KS4 BUG:
               KS4 splits its drift blocks by depth BIN INDEX with no reference
               to the channel map, so on a multi-bank probe blocks land in the
@@ -40,6 +41,30 @@ makes no claim about the error class, and a rule that ran without reaching a
 verdict is recorded as declined rather than as clean.
 """
 __version__ = '0.1.0'
+
+
+def code_commit():
+    """The git commit this package is running from, '+dirty' if the tree has
+    uncommitted changes; None outside a git checkout (an installed wheel).
+
+    Stamped into every curated.json (2026-10-01): `version` alone stayed 0.1.0
+    across every rule change since September, so no output could be traced to
+    the code that produced it.
+    """
+    import subprocess
+    from pathlib import Path
+    repo = Path(__file__).resolve().parent.parent
+    try:
+        h = subprocess.run(['git', '-C', str(repo), 'rev-parse', '--short', 'HEAD'],
+                           capture_output=True, text=True, timeout=10)
+        if h.returncode != 0:
+            return None
+        d = subprocess.run(['git', '-C', str(repo), 'status', '--porcelain',
+                            '--untracked-files=no'],
+                           capture_output=True, text=True, timeout=10)
+        return h.stdout.strip() + ('+dirty' if d.stdout.strip() else '')
+    except Exception:
+        return None
 __author__ = 'Agrita Dubey, Qiao (Betty) Xu'
 __license__ = 'MIT'
 

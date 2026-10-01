@@ -98,7 +98,7 @@ from unitassay.screen.config import IsolationConfig as _IsoCfg   # noqa: E402
 SHAPE_SIM = _IsoCfg().noise_shape_sim_threshold
 
 
-def between_verdict(dp, lr):
+def between_separated(dp, lr):
     """Are two clusters separated, given the between-cluster dip p and L-ratio?
 
     True = separated, False = not separated, None = the test could not run
@@ -387,7 +387,7 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
             res = dip_lratio_between(fa, fb, min_group_spikes=MIN_GROUP_SPIKES)
         except Exception:
             return None
-        return between_verdict(res.get('dip_pval'), res.get('l_ratio'))
+        return between_separated(res.get('dip_pval'), res.get('l_ratio'))
 
     # RAW SAMPLES, not milliseconds. compute_ccg's docstring says "spike times
     # in RAW SAMPLES (divided by fs internally)", so handing it st_ms silently
