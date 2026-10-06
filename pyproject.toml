@@ -53,6 +53,11 @@ unitassay = "unitassay.cli:main"
 [tool.setuptools.packages.find]
 include = ["unitassay*"]
 
+# The viewer's page is data, not a module: without this a WHEEL ships the server
+# and not the page, and `unitassay view` serves a 500. Editable installs hide it.
+[tool.setuptools.package-data]
+"unitassay.view" = ["static/*.html"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # The suite needs no data and no network. If a test ever does, it does not

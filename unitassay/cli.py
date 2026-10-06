@@ -5,6 +5,7 @@ Developed with Claude (Anthropic).
 
     unitassay run   --ks-dir <sorter_output> --out <dir>
     unitassay batch --sessions <list.tsv> --out <root> [--n-jobs 6]
+    unitassay view  <out or root> [--port 8765] [--events times.npy]
 
 Runs `screen` over a sorter's output to produce per-cluster isolation files,
 then `curate` over those, and writes one JSON with every cluster's verdict and
@@ -121,7 +122,21 @@ def main(argv=None):
                    help='concurrent recordings (each uses --n-threads threads)')
     b.add_argument('--window-sec', type=int, default=WINDOW_SEC)
     b.add_argument('--n-threads', type=int, default=N_THREADS)
+    v = sub.add_parser('view', help='browse one run or a batch root in a web browser (read-only)')
+    v.add_argument('out', help='the --out of `run` (one session) or of `batch` (many)')
+    v.add_argument('--port', type=int, default=8765)
+    v.add_argument('--host', default='127.0.0.1',
+                   help='127.0.0.1 by default; reach it remotely with an SSH tunnel')
+    v.add_argument('--events', default=None,
+                   help='event times in SECONDS on the recording clock (.npy or one per '
+                        'line) to add a raster/PSTH; for a batch root, a .tsv of '
+                        '"name<TAB>events_path"')
     a = ap.parse_args(argv)
+
+    if a.cmd == 'view':
+        from unitassay.view.server import serve
+        serve(a.out, host=a.host, port=a.port, events=a.events)
+        return 0
 
     if a.cmd == 'batch':
         from unitassay.batch import read_sessions, run_batch

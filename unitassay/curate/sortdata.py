@@ -221,6 +221,31 @@ def process_sortdata_all_frames(sf_path):
         return None
 
 
+def frame_matrix(sd):
+    """The per-frame L-ratio matrix mind_snag judges, and its two masks.
+
+    Returns (mat, absent, clean):
+      mat     (1 + n_others, n_frames): row 0 is unit-vs-noise, then one row per
+              neighbour, with a neighbour's NaN set to 0.0 in frames where the
+              UNIT is present (an absent neighbour cannot contaminate it)
+      absent  (n_frames,) bool: the unit had no spikes in the frame
+      clean   (n_frames,) bool: every row below L_RATIO_MS_THRESH. An absent
+              frame is never clean -- NaN < x is False -- which is how mind_snag
+              counts absence against the unit.
+
+    Factored out of channel_fields() (2026-10-05) so that `unitassay view` can
+    show WHICH frames were clean without a second copy of this rule.
+    """
+    lo = (np.stack(sd['lr_others'], 0) if sd['lr_others']
+          else np.zeros((0, sd['n_frames'])))
+    mat = np.vstack([sd['lr_noise'][None, :], lo])
+    absent = np.isnan(mat[0, :])
+    for k in range(1, mat.shape[0]):
+        mat[k, np.isnan(mat[k, :]) & (~absent)] = 0.0
+    clean = np.all(mat < L_RATIO_MS_THRESH, axis=0)
+    return mat, absent, clean
+
+
 def channel_fields(sd):
     """mind_snag's per-frame rules, plus the frame COVERAGE the taxonomy needs.
 
@@ -255,11 +280,7 @@ def channel_fields(sd):
     lo = (np.stack(sd['lr_others'], 0) if sd['lr_others']
           else np.zeros((0, sd['n_frames'])))
     noise = sd['lr_noise']
-    mat = np.vstack([noise[None, :], lo])
-    absent = np.isnan(mat[0, :])
-    for k in range(1, mat.shape[0]):
-        mat[k, np.isnan(mat[k, :]) & (~absent)] = 0.0
-    clean = np.all(mat < L_RATIO_MS_THRESH, axis=0)
+    mat, absent, clean = frame_matrix(sd)
     other_max = (_nan_reduce(np.nanmax, lo, np.nan) if lo.shape[0]
                  else np.zeros(sd['n_frames']))
     # scalar reductions over a possibly all-NaN frame vector, same reasoning

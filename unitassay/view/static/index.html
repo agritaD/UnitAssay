@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UnitAssay Viewer</title>
+<!--
+  unitassay view — the page. Read-only; talks to view/server.py's JSON API.
+  No external scripts or fonts: it must work on a lab server with no internet.
+  Layout follows the MATLAB Spike_sorting_GUI (Qiao (Betty) Xu): cluster
+  selection left, waveform + activity middle, PC clouds with a frame player
+  right -- plus layer 2's verdict, which that GUI did not have.
+  Part of unitassay. Licence: MIT.
+-->
+<style>
+:root{
+  --bg:#f6f6f4; --panel:#ffffff; --ink:#1d1d1f; --muted:#6b6b70; --line:#dcdcd8;
+  --grid:#ececea; --accent:#0b62a8;
+  --unit:#0072B2; --noise:#8f8f8f;
+  --pass:#0b62a8; --fail:#c2410c; --low:#7a7a7a;
+  --clean-band:rgba(11,98,168,.10); --fail-band:rgba(194,65,12,.13); --absent-band:rgba(120,120,120,.16);
+  --sel:#fff3c4;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#16171a; --panel:#1f2024; --ink:#e8e8ea; --muted:#9a9aa2; --line:#33343a;
+    --grid:#2a2b30; --accent:#6cb4ff; --unit:#56a8ff; --noise:#9a9aa2;
+    --pass:#6cb4ff; --fail:#ff8a50; --low:#a0a0a8;
+    --clean-band:rgba(108,180,255,.13); --fail-band:rgba(255,138,80,.16); --absent-band:rgba(160,160,170,.16);
+    --sel:#3b3520;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16171a; --panel:#1f2024; --ink:#e8e8ea; --muted:#9a9aa2; --line:#33343a;
+  --grid:#2a2b30; --accent:#6cb4ff; --unit:#56a8ff; --noise:#9a9aa2;
+  --pass:#6cb4ff; --fail:#ff8a50; --low:#a0a0a8;
+  --clean-band:rgba(108,180,255,.13); --fail-band:rgba(255,138,80,.16); --absent-band:rgba(160,160,170,.16);
+  --sel:#3b3520;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font:13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:8px 14px;border-bottom:1px solid var(--line);
+  background:var(--panel);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+header h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.2px}
+header .meta{color:var(--muted);font-size:12px}
+select,input,button{font:inherit;color:inherit;background:var(--panel);border:1px solid var(--line);
+  border-radius:6px;padding:4px 7px}
+button{cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+main{display:grid;grid-template-columns:310px minmax(360px,1fr) minmax(380px,1.05fr);gap:10px;padding:10px}
+@media (max-width:1150px){ main{grid-template-columns:1fr 1fr} #colL{grid-column:1/-1} }
+@media (max-width:760px){ main{grid-template-columns:1fr;padding:8px 16px} }
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-bottom:10px;min-width:0}
+.panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:0 0 6px;font-weight:600;
+  display:flex;justify-content:space-between;align-items:center;gap:6px}
+.chip{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600;color:#fff;white-space:nowrap}
+.PASS{background:var(--pass)} .FAIL{background:var(--fail)} .LOW_SPIKE_COUNT{background:var(--low)}
+.filters{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}
+.filters select,.filters input{flex:1 1 120px;min-width:0}
+#clist{max-height:42vh;overflow:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%}
+th,td{padding:3px 6px;text-align:left;border-bottom:1px solid var(--grid);white-space:nowrap}
+th{position:sticky;top:0;background:var(--panel);font-weight:600;color:var(--muted);font-size:11px;cursor:pointer;user-select:none}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--grid)}
+tbody tr.sel{background:var(--sel)}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+canvas{width:100%;display:block}
+.verdict .big{display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap}
+.verdict .big .clu{font-size:20px;font-weight:700}
+.verdict .big .chip{font-size:13px;padding:2px 10px}
+.verdict .rule{font-weight:600}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 12px;margin-top:6px}
+.kv div{display:flex;justify-content:space-between;gap:6px;border-bottom:1px dotted var(--grid);padding:1px 0}
+.kv span:first-child{color:var(--muted)}
+.kv span:last-child{font-variant-numeric:tabular-nums;text-align:right}
+.bad{color:var(--fail);font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0}
+.legend button{display:flex;align-items:center;gap:5px;padding:2px 7px;font-size:12px}
+.legend button .sw{width:10px;height:10px;border-radius:50%}
+.legend button.off{opacity:.38}
+.legend button .lr{font-variant-numeric:tabular-nums;color:var(--muted);font-size:11px}
+.player{display:flex;align-items:center;gap:6px;margin-top:6px}
+.player input[type=range]{flex:1}
+.pcs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+@media (max-width:760px){ .pcs{grid-template-columns:1fr} }
+.tabs{display:flex;gap:4px}
+.tabs button{padding:1px 8px;font-size:11px}
+.note{color:var(--muted);font-size:11.5px}
+.err{color:var(--fail);padding:6px 0}
+#help{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;align-items:center;justify-content:center}
+#help .box{background:var(--panel);border-radius:10px;padding:16px 20px;max-width:560px;margin:16px}
+kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:11px}
+.pairs td button{padding:0 6px;font-size:11px}
+</style>
+</head>
+<body>
+<header>
+  <h1>UnitAssay Viewer</h1>
+  <select id="sess" aria-label="session"></select>
+  <span id="smeta" class="meta"></span>
+  <span style="flex:1"></span>
+  <button id="themeBtn" title="toggle light/dark">◐</button>
+  <button id="helpBtn" title="keyboard shortcuts">?</button>
+</header>
+
+<main>
+  <!-- LEFT: selection (Betty's Input + Visualization Control panels) -->
+  <section id="colL">
+    <div class="panel">
+      <h2>Clusters <span id="ccount" class="note"></span></h2>
+      <div class="filters">
+        <select id="fDec"><option value="">all decisions</option>
+          <option>PASS</option><option>FAIL</option><option>LOW_SPIKE_COUNT</option></select>
+        <select id="fCls"><option value="">all error classes</option></select>
+        <select id="fRule"><option value="">all rules</option></select>
+        <input id="fTxt" placeholder="cluster id or channel" aria-label="search">
+      </div>
+      <div id="clist"><table><thead><tr>
+        <th data-k="clu_id">clu</th><th data-k="peak_ch">ch</th><th data-k="n_spikes">spikes</th>
+        <th data-k="decision">decision</th><th data-k="rule_id">rule</th><th data-k="error_class">class</th>
+      </tr></thead><tbody id="ctbody"></tbody></table></div>
+    </div>
+    <div class="panel">
+      <h2>Probe map <span class="note">click a unit</span></h2>
+      <canvas id="probe" height="330"></canvas>
+      <div class="note" id="probeNote"></div>
+    </div>
+  </section>
+
+  <!-- MIDDLE: verdict (layer 2), waveform, activity -->
+  <section id="colM">
+    <div class="panel verdict" id="verdict"><div class="note">Pick a cluster.</div></div>
+    <div class="panel">
+      <h2>Waveform <span class="note" id="wfNote"></span></h2>
+      <canvas id="wf" height="190"></canvas>
+    </div>
+    <div class="panel">
+      <h2><span id="actTitle">Firing rate over the recording</span>
+        <span class="tabs" id="actTabs"></span></h2>
+      <canvas id="act" height="170"></canvas>
+      <div class="note" id="actNote"></div>
+    </div>
+    <div class="panel">
+      <h2>Autocorrelogram <span class="note" id="acgNote"></span></h2>
+      <canvas id="acg" height="150"></canvas>
+    </div>
+  </section>
+
+  <!-- RIGHT: layer 1 -->
+  <section id="colR">
+    <div class="panel">
+      <h2>Layer 1 — L-ratio per frame <span class="note" id="lrNote"></span></h2>
+      <canvas id="lr" height="170"></canvas>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="panel">
+      <h2>PC features <span class="note" id="pcNote"></span></h2>
+      <div class="pcs"><canvas id="pc12" height="200"></canvas><canvas id="pc13" height="200"></canvas><canvas id="pc23" height="200"></canvas></div>
+      <div class="player">
+        <button id="prevF" title="previous frame (←)">◀</button>
+        <button id="playF" title="play (space)">Play</button>
+        <button id="nextF" title="next frame (→)">▶</button>
+        <input type="range" id="frame" min="0" max="0" value="0" aria-label="frame">
+        <span id="frameLbl" class="note" style="min-width:90px"></span>
+      </div>
+    </div>
+    <div class="panel pairs">
+      <h2>Pairs <span class="note" id="pairNote"></span></h2>
+      <div id="pairs" class="note">—</div>
+      <canvas id="ccg" height="150" style="display:none;margin-top:6px"></canvas>
+      <div id="ccgNote" class="note"></div>
+    </div>
+  </section>
+</main>
+
+<div id="help"><div class="box">
+  <h3 style="margin-top:0">UnitAssay Viewer</h3>
+  <p><kbd>↑</kbd>/<kbd>↓</kbd> or <kbd>k</kbd>/<kbd>j</kbd> previous / next cluster in the filtered list ·
+     <kbd>←</kbd>/<kbd>→</kbd> frame · <kbd>space</kbd> play frames · <kbd>a</kbd> show/hide all neighbours ·
+     <kbd>?</kbd> this help.</p>
+  <p class="note"><b>Layer 1</b> (isolate) splits the recording into frames and, in each, measures the
+  L-ratio of the unit against its reference ("noise") channel and against every neighbour on its peak channel.
+  A frame is <i>clean</i> when every L-ratio is below the threshold, and absent frames count as not clean.
+  <b>Layer 2</b> (curate) uses those numbers with the dip test, ISI violations and pair CCGs to decide
+  PASS / FAIL / LOW_SPIKE_COUNT. The rule shown is the one that decided.</p>
+  <p class="note">Read-only: nothing here changes a verdict.</p>
+  <button onclick="document.getElementById('help').style.display='none'">Close</button>
+</div></div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------- state
+const NB = ['#E69F00','#009E73','#CC79A7','#D55E00','#56B4E9','#8C6D31','#7F3C8D','#B8A100'];
+const S = { sessions:[], sess:null, rows:[], view:[], sort:{k:'clu_id',d:1}, clu:null, cd:null,
+            frame:0, play:null, show:{noise:true, unit:true}, nbOn:[], tab:'rate', psth:null };
+const $ = id => document.getElementById(id);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt = (v, d=3) => v==null || Number.isNaN(v) ? '—' : (typeof v==='number' ? (Math.abs(v)>=1000 ? v.toFixed(0) : (v!==0 && Math.abs(v)<Math.pow(10,-d) ? v.toExponential(1) : +v.toFixed(d))) : String(v));
+async function api(path){
+  const r = await fetch(path); const j = await r.json();
+  if(!r.ok) throw new Error(j.error || r.statusText); return j;
+}
+
+// ---------------------------------------------------------------- tiny canvas plotting
+function canvasCtx(c){
+  const dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = +c.getAttribute('height');
+  c.style.height = h + 'px';
+  if(c.width !== Math.round(w*dpr) || c.height !== Math.round(h*dpr)){ c.width = Math.round(w*dpr); c.height = Math.round(h*dpr); }
+  const ctx = c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+  return {ctx, w, h};
+}
+function niceTicks(lo, hi, n=5){
+  if(!(hi>lo)) return [lo];
+  const raw = (hi-lo)/n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=raw);
+  const out=[]; for(let v=Math.ceil(lo/step)*step; v<=hi+1e-9*step; v+=step) out.push(+v.toFixed(10)); return out;
+}
+// plot(canvas, {x:[lo,hi], y:[lo,hi], xl, yl, title}) -> {ctx, X, Y, box}; draw on it afterwards
+function plot(c, o){
+  const {ctx, w, h} = canvasCtx(c);
+  const m = {l: o.yl ? 46 : 36, r: 8, t: o.title ? 18 : 8, b: o.xl ? 32 : 20};
+  const box = {x: m.l, y: m.t, w: Math.max(10, w-m.l-m.r), h: Math.max(10, h-m.t-m.b)};
+  const [x0,x1] = o.x, [y0,y1] = o.y;
+  const X = v => box.x + (v-x0)/(x1-x0||1)*box.w, Y = v => box.y + box.h - (v-y0)/(y1-y0||1)*box.h;
+  ctx.font = '10.5px system-ui,sans-serif'; ctx.fillStyle = css('--muted'); ctx.strokeStyle = css('--grid'); ctx.lineWidth = 1;
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  for(const t of niceTicks(x0,x1,o.nx||5)){ const px=X(t); ctx.beginPath(); ctx.moveTo(px,box.y); ctx.lineTo(px,box.y+box.h); ctx.stroke(); ctx.fillText(fmt(t,2), px, box.y+box.h+3); }
+  ctx.textAlign='right'; ctx.textBaseline='middle';
+  for(const t of niceTicks(y0,y1,o.ny||4)){ const py=Y(t); ctx.beginPath(); ctx.moveTo(box.x,py); ctx.lineTo(box.x+box.w,py); ctx.stroke(); ctx.fillText(fmt(t,2), box.x-4, py); }
+  ctx.strokeStyle = css('--line'); ctx.strokeRect(box.x, box.y, box.w, box.h);
+  ctx.fillStyle = css('--muted'); ctx.textAlign='center';
+  if(o.xl){ ctx.textBaseline='bottom'; ctx.fillText(o.xl, box.x+box.w/2, h-1); }
+  if(o.yl){ ctx.save(); ctx.translate(10, box.y+box.h/2); ctx.rotate(-Math.PI/2); ctx.textBaseline='middle'; ctx.fillText(o.yl,0,0); ctx.restore(); }
+  if(o.title){ ctx.fillStyle = css('--ink'); ctx.textBaseline='top'; ctx.font='600 11px system-ui,sans-serif'; ctx.fillText(o.title, box.x+box.w/2, 2); }
+  ctx.save(); ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip();
+  return {ctx, X, Y, box, done(){ ctx.restore(); }};
+}
+function line(p, xs, ys, color, lw=1.6, dash){
+  const {ctx,X,Y}=p; ctx.strokeStyle=color; ctx.lineWidth=lw; ctx.setLineDash(dash||[]); ctx.beginPath(); let pen=false;
+  for(let i=0;i<xs.length;i++){ const y=ys[i]; if(y==null){pen=false;continue;} const px=X(xs[i]), py=Y(y); pen?ctx.lineTo(px,py):ctx.moveTo(px,py); pen=true; }
+  ctx.stroke(); ctx.setLineDash([]);
+}
+function dots(p, pts, i, j, color, r=1.4, alpha=.55){
+  const {ctx,X,Y}=p; ctx.fillStyle=color; ctx.globalAlpha=alpha;
+  for(const q of pts){ ctx.fillRect(X(q[i])-r, Y(q[j])-r, 2*r, 2*r); } ctx.globalAlpha=1;
+}
+function bars(p, xs, ys, w, color){
+  const {ctx,X,Y}=p; ctx.fillStyle=color;
+  for(let i=0;i<xs.length;i++){ const x0=X(xs[i]-w/2), x1=X(xs[i]+w/2); ctx.fillRect(x0, Y(ys[i]), Math.max(1,x1-x0-.3), Y(0)-Y(ys[i])); }
+}
+function hline(p, y, color, dash=[4,3]){ const {ctx,Y,box}=p; ctx.strokeStyle=color; ctx.lineWidth=1; ctx.setLineDash(dash); ctx.beginPath(); ctx.moveTo(box.x,Y(y)); ctx.lineTo(box.x+box.w,Y(y)); ctx.stroke(); ctx.setLineDash([]); }
+function vband(p, x0, x1, color){ const {ctx,X,box}=p; ctx.fillStyle=color; ctx.fillRect(X(x0), box.y, X(x1)-X(x0), box.h); }
+function empty(c, msg){ const {ctx,w,h}=canvasCtx(c); ctx.fillStyle=css('--muted'); ctx.font='12px system-ui'; ctx.textAlign='center'; ctx.fillText(msg, w/2, h/2); }
+function maxOf(arrs){ let m=-Infinity; for(const a of arrs) for(const v of a) if(v!=null && v>m) m=v; return m; }
+function minOf(arrs){ let m=Infinity; for(const a of arrs) for(const v of a) if(v!=null && v<m) m=v; return m; }
+function quantile(vals, q){ const a=vals.filter(v=>v!=null && isFinite(v)).sort((x,y)=>x-y); return a.length? a[Math.min(a.length-1, Math.floor(q*(a.length-1)))] : 1; }
+
+// ---------------------------------------------------------------- sessions + list
+async function init(){
+  try{
+    const j = await api('/api/sessions'); S.sessions = j.sessions;
+    $('sess').innerHTML = j.sessions.map(s => `<option value="${s.name}">${s.name}${s.error?' (unreadable)':`  ·  ${s.PASS}/${s.n} PASS`}</option>`).join('');
+    const [hs, hc] = decodeURIComponent(location.hash.slice(1)).split('/');
+    const start = j.sessions.find(s=>s.name===hs) ? hs : j.sessions[0].name;
+    $('sess').value = start; await loadSession(start, hc!=null && hc!=='' ? +hc : null);
+  }catch(e){ $('verdict').innerHTML = `<div class="err">${e.message}</div>`; }
+}
+async function loadSession(name, clu){
+  stopPlay(); S.sess = await api('/api/session/'+encodeURIComponent(name)); S.rows = S.sess.rows; S.cd = null; S.clu = null;
+  const m = S.sess, n = m.rows.length, c = k => m.rows.filter(r=>r.decision===k).length;
+  $('smeta').innerHTML = `${n} clusters · <span class="chip PASS">PASS ${c('PASS')}</span> <span class="chip FAIL">FAIL ${c('FAIL')}</span> <span class="chip LOW_SPIKE_COUNT">LOW ${c('LOW_SPIKE_COUNT')}</span> · unitassay ${m.version||''} @ ${m.commit||'?'} · ${m.window_sec||'?'} s frames`;
+  $('smeta').title = m.ks_dir || '';
+  const uniq = k => [...new Set(m.rows.map(r=>r[k]).filter(v=>v!=null))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
+  $('fCls').innerHTML = '<option value="">all error classes</option>' + uniq('error_class').map(v=>`<option>${v}</option>`).join('');
+  $('fRule').innerHTML = '<option value="">all rules</option>' + uniq('rule_label').map(v=>`<option>${v}</option>`).join('');
+  $('actTabs').innerHTML = m.has_events ? '<button data-t="rate">rate</button><button data-t="psth">PSTH</button>' : '';
+  $('actTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.tab=b.dataset.t; drawActivity();});
+  if(!m.has_events) S.tab='rate';
+  filter(); drawProbe();
+  const first = clu!=null && m.rows.find(r=>r.clu_id===clu) ? clu : (S.view[0]||{}).clu_id;
+  if(first!=null) select(first);
+}
+function filter(){
+  const d=$('fDec').value, c=$('fCls').value, r=$('fRule').value, t=$('fTxt').value.trim();
+  S.view = S.rows.filter(x => (!d||x.decision===d) && (!c||x.error_class===c) && (!r||x.rule_label===r) &&
+     (!t || String(x.clu_id)===t || String(x.peak_ch)===t || String(x.clu_id).startsWith(t)));
+  const {k,d:dir} = S.sort;
+  S.view.sort((a,b)=>{ const u=a[k], v=b[k]; return (u==null)-(v==null) || (u<v?-1:u>v?1:0)*dir; });
+  $('ccount').textContent = `${S.view.length} / ${S.rows.length}`;
+  $('ctbody').innerHTML = S.view.map(x=>`<tr data-c="${x.clu_id}" class="${x.clu_id===S.clu?'sel':''}"><td class="num">${x.clu_id}</td><td class="num">${x.peak_ch??'—'}</td><td class="num">${x.n_spikes??'—'}</td><td><span class="chip ${x.decision}">${x.decision==='LOW_SPIKE_COUNT'?'LOW':x.decision}</span></td><td>${x.rule_id??''}</td><td>${x.error_class??''}</td></tr>`).join('');
+  drawProbe();
+}
+$('ctbody').onclick = e => { const tr=e.target.closest('tr'); if(tr) select(+tr.dataset.c); };
+document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{ const k=th.dataset.k; S.sort = {k, d: S.sort.k===k ? -S.sort.d : 1}; filter(); });
+['fDec','fCls','fRule'].forEach(id=>$(id).onchange=filter); $('fTxt').oninput=filter;
+$('sess').onchange = () => loadSession($('sess').value, null);
+
+// ---------------------------------------------------------------- probe map
+let probePts = [];
+function drawProbe(){
+  const c=$('probe'); if(!S.sess) return;
+  const rows=S.rows.filter(r=>r.y!=null); if(!rows.length){ empty(c,'no channel positions'); return; }
+  const inView = new Set(S.view.map(r=>r.clu_id));
+  const amps = rows.map(r=>r.template_amp||0), amax = quantile(amps,.98)||1;
+  const y0=minOf([rows.map(r=>r.y)]), y1=maxOf([rows.map(r=>r.y)]);
+  const p = plot(c,{x:[0,1],y:[y0-40,y1+40],yl:'depth (µm)',xl:'template amplitude (√ scale) →', nx:1});
+  probePts=[];
+  for(const r of rows){
+    const x = .04 + .92*Math.sqrt(Math.min(1,(r.template_amp||0)/amax)), col = css('--'+(r.decision==='PASS'?'pass':r.decision==='FAIL'?'fail':'low'));
+    const px=p.X(x), py=p.Y(r.y), on=inView.has(r.clu_id);
+    p.ctx.globalAlpha = on ? .8 : .12; p.ctx.fillStyle=col; p.ctx.beginPath(); p.ctx.arc(px,py,r.clu_id===S.clu?5:2.6,0,7); p.ctx.fill();
+    if(r.clu_id===S.clu){ p.ctx.globalAlpha=1; p.ctx.strokeStyle=css('--ink'); p.ctx.lineWidth=1.5; p.ctx.stroke(); }
+    if(on) probePts.push([px,py,r.clu_id]);
+  }
+  p.ctx.globalAlpha=1; p.done();
+  $('probeNote').textContent = 'each dot is a cluster at its peak channel; colour = decision, faded = filtered out';
+}
+$('probe').onclick = e => {
+  const b=$('probe').getBoundingClientRect(), x=e.clientX-b.left, y=e.clientY-b.top;
+  let best=null, bd=144; for(const [px,py,id] of probePts){ const d=(px-x)**2+(py-y)**2; if(d<bd){bd=d;best=id;} }
+  if(best!=null) select(best);
+};
+
+// ---------------------------------------------------------------- select a cluster
+async function select(clu){
+  stopPlay(); S.clu = clu; S.psth=null;
+  document.querySelectorAll('#ctbody tr').forEach(tr=>tr.classList.toggle('sel', +tr.dataset.c===clu));
+  const tr = document.querySelector(`#ctbody tr[data-c="${clu}"]`); if(tr) tr.scrollIntoView({block:'nearest'});
+  history.replaceState(null,'','#'+encodeURIComponent(S.sess.name)+'/'+clu);
+  drawProbe();
+  $('verdict').innerHTML = `<div class="note">loading cluster ${clu}…</div>`;
+  try{ S.cd = await api(`/api/cluster/${encodeURIComponent(S.sess.name)}/${clu}`); }
+  catch(e){ $('verdict').innerHTML = `<div class="err">${e.message}</div>`; return; }
+  if(S.clu!==clu) return;          // a newer click won
+  const iso = S.cd.isolation || {};
+  S.nbOn = (iso.other_clu||[]).map(()=>true);
+  // start on the worst frame (highest L-ratio), the one that explains a FAIL
+  S.frame = worstFrame(iso);
+  drawAll();
+  if(S.sess.has_events){ api(`/api/psth/${encodeURIComponent(S.sess.name)}/${clu}`).then(j=>{ if(S.clu===clu){ S.psth=j; drawActivity(); }}).catch(()=>{}); }
+}
+function worstFrame(iso){
+  if(!iso.n_frames) return 0; let best=0, bv=-1;
+  for(let i=0;i<iso.n_frames;i++){ const v=Math.max(iso.lr_noise[i]??-1, ...(iso.lr_others||[]).map(a=>a[i]??-1)); if(v>bv){bv=v;best=i;} }
+  return best;
+}
+function drawAll(){ drawVerdict(); drawLegend(); drawLR(); drawPCs(); drawWaveform(); drawActivity(); drawACG(); drawPairs(); setFrameUI(); }
+
+// ---------------------------------------------------------------- layer 2 verdict
+function drawVerdict(){
+  const d=S.cd, r=d.row||{}, iso=d.isolation||{}, th=S.sess.thresholds;
+  const kv = (k,v,bad,tip) => `<div title="${tip||''}"><span>${k}</span><span class="${bad?'bad':''}">${v}</span></div>`;
+  const acc = (r.ccg_accusers||[]).map(a=>typeof a==='object'? (a.clu??a.other??JSON.stringify(a)) : a).join(', ');
+  const cf = iso.clean_frac;
+  $('verdict').innerHTML = `
+    <div class="big"><span class="clu">Cluster ${d.clu_id}</span><span class="chip ${r.decision}">${r.decision||'not curated'}</span>
+      <span class="rule">${r.rule_label||''}</span></div>
+    <div><b>error class:</b> ${r.error_class||'—'} &nbsp;·&nbsp; <b>sub-type:</b> ${r.sub_type||'—'} &nbsp;·&nbsp; <b>mechanism:</b> ${r.mechanism||'—'} (${r.locus||'—'})
+      ${(r.findings||[]).length? ' &nbsp;·&nbsp; <b>findings:</b> '+r.findings.join(', '):''}</div>
+    <div class="kv">
+      ${kv('spikes', d.n_spikes, d.n_spikes<th.low_spike, `below ${th.low_spike} spikes = LOW_SPIKE_COUNT`)}
+      ${kv('peak channel', r.peak_ch??S.rows.find(x=>x.clu_id===d.clu_id)?.peak_ch??'—')}
+      ${kv('clean frames', cf==null?'—':`${Math.round(cf*100)}%`, cf!=null && cf<th.isolated_t_ratio, `layer 1 needs ≥ ${th.isolated_t_ratio*100}% of frames with every L-ratio < ${th.l_ratio_ms}`)}
+      ${kv('layer-1 pass', r.screen_pass==null?'—':r.screen_pass?'yes':'no', r.screen_pass===false, 'clean frames ≥ threshold AND the ISI criterion (or burst)')}
+      ${kv('dominant source', r.dominant_source||'—')}
+      ${kv('absent frames', r.absent_frame_frac==null?'—':`${Math.round(r.absent_frame_frac*100)}%`)}
+      ${kv('dip p', fmt(r._dip_pval), r._dip_pval!=null && r._dip_pval<th.dip_pval, `within-cluster dip test; < ${th.dip_pval} = bimodal`)}
+      ${kv('L-ratio (dip split)', fmt(r._l_ratio), r._l_ratio!=null && r._l_ratio<th.l_ratio_between, `separation of the two halves; < ${th.l_ratio_between} = separate`)}
+      ${kv('overmerge test', r.ldl_verdict||'—', r.ldl_verdict==='overmerged')}
+      ${kv('ISI violations', `${d.isi.n_viol} (ratio ${fmt(d.isi.hill_ratio,3)})`, d.isi.passes===false, `fails when ≥ ${th.isi_guard} violations AND ratio ≥ ${th.isi_ratio}`)}
+      ${kv('burst', r.is_burst?'yes':'no')}
+      ${kv('CCG accusers', acc||'none', !!acc)}
+      ${kv('redundant of', r.redundant_of??'—', r.redundant_of!=null)}
+      ${kv('overlap pairs', (r.overlap_pairs||[]).length)}
+    </div>`;
+}
+
+// ---------------------------------------------------------------- layer 1: L-ratio per frame
+function nbColor(j){ return NB[j % NB.length]; }
+function drawLegend(){
+  const iso=S.cd.isolation||{}, f=S.frame;
+  const btn = (key,label,color,on,lr) => `<button data-k="${key}" class="${on?'':'off'}"><span class="sw" style="background:${color}"></span>${label}${lr!==undefined?` <span class="lr">${fmt(lr,3)}</span>`:''}</button>`;
+  let h = btn('unit','unit',css('--unit'),S.show.unit) + btn('noise','noise ch.',css('--noise'),S.show.noise, iso.lr_noise?iso.lr_noise[f]:undefined);
+  (iso.other_clu||[]).forEach((c,j)=>{ h += btn('nb'+j, `clu ${c}`, nbColor(j), S.nbOn[j], iso.lr_others[j][f]); });
+  if((iso.other_clu||[]).length) h += `<button data-k="all">all</button>`;
+  $('legend').innerHTML = h;
+  $('legend').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.k;
+    if(k==='unit'||k==='noise') S.show[k]=!S.show[k];
+    else if(k==='all'){ const v=!S.nbOn.every(Boolean); S.nbOn=S.nbOn.map(()=>v); }
+    else S.nbOn[+k.slice(2)] = !S.nbOn[+k.slice(2)];
+    drawLegend(); drawLR(); drawPCs(); drawWaveform();
+  });
+  $('legend').querySelectorAll('button[data-k^="nb"]').forEach(b=>b.ondblclick=()=>{ const j=+b.dataset.k.slice(2); showPair(S.cd.clu_id, iso.other_clu[j]); });
+}
+function drawLR(){
+  const c=$('lr'), iso=S.cd.isolation||{}, th=S.sess.thresholds;
+  if(!iso.n_frames){ empty(c,'no isolation file for this cluster'); $('lrNote').textContent=''; return; }
+  const n=iso.n_frames, xs=[...Array(n).keys()];
+  const series=[iso.lr_noise, ...iso.lr_others.filter((_,j)=>S.nbOn[j])];
+  const ymax=Math.max(th.l_ratio_ms*1.6, Math.min(maxOf(series)*1.1, 5));
+  const p=plot(c,{x:[-.5,n-.5], y:[0,ymax], xl:`frame (${S.sess.window_sec||'?'} s each)`, yl:'L-ratio', nx:Math.min(n,10)});
+  for(let i=0;i<n;i++) vband(p, i-.5, i+.5, iso.absent[i]?css('--absent-band'):iso.clean[i]?css('--clean-band'):css('--fail-band'));
+  vband(p, S.frame-.5, S.frame+.5, 'rgba(255,200,0,.18)');
+  hline(p, th.l_ratio_ms, css('--ink'));
+  if(S.show.noise) line(p, xs, iso.lr_noise, css('--noise'), 2);
+  iso.lr_others.forEach((a,j)=>{ if(S.nbOn[j]) line(p, xs, a, nbColor(j), 1.8); });
+  const mark=(a,col)=>{ for(let i=0;i<n;i++) if(a[i]!=null){ p.ctx.fillStyle=col; p.ctx.beginPath(); p.ctx.arc(p.X(i),p.Y(Math.min(a[i],ymax)),2.6,0,7); p.ctx.fill(); } };
+  if(S.show.noise) mark(iso.lr_noise, css('--noise')); iso.lr_others.forEach((a,j)=>{ if(S.nbOn[j]) mark(a, nbColor(j)); });
+  p.done();
+  const nc=iso.clean.filter(Boolean).length, na=iso.absent.filter(Boolean).length;
+  $('lrNote').innerHTML = `${nc}/${n} clean${na?`, ${na} absent`:''} · need ≥ ${Math.round(th.isolated_t_ratio*100)}% · dashed = ${th.l_ratio_ms}`;
+}
+$('lr').onclick = e => { const iso=S.cd&&S.cd.isolation; if(!iso||!iso.n_frames) return; const b=$('lr').getBoundingClientRect(); const box={x:46,w:b.width-54}; const f=Math.round((e.clientX-b.left-box.x)/box.w*iso.n_frames-.5); setFrame(Math.max(0,Math.min(iso.n_frames-1,f))); };
+
+// ---------------------------------------------------------------- PC clouds
+function drawPCs(){
+  const iso=S.cd.isolation||{}, fr=(iso.frames||[])[S.frame];
+  const ids=['pc12','pc13','pc23'], dims=[[0,1],[0,2],[1,2]];
+  if(!fr){ ids.forEach(id=>empty($(id), iso.n_frames?'unit absent in this frame':'no isolation file')); $('pcNote').textContent=''; return; }
+  // ONE axis limit for every frame of this cluster (as the MATLAB GUI does), so the cloud's motion is real
+  // per GROUP, then the larger: pooling lets the noise cloud at the origin pull the limit inside the unit's cloud
+  if(!S.cd._pclim){ const ext = k => { const v=[]; for(const f of iso.frames||[]) if(f) for(const q of f[k]) v.push(Math.abs(q[0]),Math.abs(q[1]),Math.abs(q[2])); return v.length ? quantile(v,.995) : 0; };
+    S.cd._pclim = Math.max(ext('unit'), ext('noise'))*1.1 || 1; }
+  const L=S.cd._pclim;
+  ids.forEach((id,k)=>{
+    const [i,j]=dims[k], p=plot($(id),{x:[-L,L],y:[-L,L],title:`PC${i+1} vs PC${j+1}`,nx:3,ny:3});
+    if(S.show.noise) dots(p, fr.noise, i, j, css('--noise'), 1.3, .45);
+    fr.others.forEach((o,n)=>{ if(S.nbOn[n]) dots(p, o, i, j, nbColor(n), 1.3, .5); });
+    if(S.show.unit) dots(p, fr.unit, i, j, css('--unit'), 1.4, .7);
+    p.done();
+  });
+  $('pcNote').textContent = `${fr.n_unit} unit spikes in frame${fr.unit.length<fr.n_unit?` (showing ${fr.unit.length})`:''}`;
+}
+
+// ---------------------------------------------------------------- waveform
+function drawWaveform(){
+  const c=$('wf'), iso=S.cd.isolation||{}, fr=(iso.frames||[])[S.frame] || (iso.frames||[]).find(Boolean);
+  if(!fr || !fr.clu_wf.length){ empty(c,'no waveform'); $('wfNote').textContent=''; return; }
+  const ws=[]; if(S.show.unit) ws.push(fr.clu_wf); if(S.show.noise) ws.push(fr.noise_wf); fr.other_wf.forEach((w,j)=>{ if(S.nbOn[j]) ws.push(w); });
+  const lo=minOf(ws.length?ws:[fr.clu_wf]), hi=maxOf(ws.length?ws:[fr.clu_wf]), pad=(hi-lo)*.08||1, n=fr.clu_wf.length, xs=[...Array(n).keys()];
+  const p=plot(c,{x:[0,n-1],y:[lo-pad,hi+pad],xl:'sample',yl:'amplitude'});
+  if(S.show.noise) line(p,xs,fr.noise_wf,css('--noise'),2);
+  fr.other_wf.forEach((w,j)=>{ if(S.nbOn[j]) line(p,xs,w,nbColor(j),1.8); });
+  if(S.show.unit) line(p,xs,fr.clu_wf,css('--unit'),2.4);
+  p.done();
+  $('wfNote').textContent = `mean on the unit's peak channel, frame ${S.frame+1}`;
+}
+
+// ---------------------------------------------------------------- activity: rate over time / PSTH
+function drawActivity(){
+  $('actTabs').querySelectorAll('button').forEach(b=>b.classList.toggle('on', b.dataset.t===S.tab));
+  if(S.tab==='psth') return drawPSTH();
+  $('actTitle').textContent='Firing rate over the recording';
+  const c=$('act'), d=S.cd, iso=d.isolation||{}, hz=d.rate.hz, bw=d.rate.bin_sec, xs=hz.map((_,i)=>(i+.5)*bw);
+  if(!hz.length){ empty(c,'no spikes'); return; }
+  const p=plot(c,{x:[0,Math.max(d.duration_sec,bw)], y:[0,Math.max(1,maxOf([hz])*1.1)], xl:'time (s)', yl:'rate (Hz)'});
+  const W=d.window_sec;
+  if(W && iso.n_frames) for(let i=0;i<iso.n_frames;i++) vband(p, i*W, (i+1)*W, iso.absent[i]?css('--absent-band'):iso.clean[i]?css('--clean-band'):css('--fail-band'));
+  if(W) vband(p, S.frame*W, (S.frame+1)*W, 'rgba(255,200,0,.18)');
+  bars(p, xs, hz, bw, css('--unit')); p.done();
+  $('actNote').innerHTML = `${bw}-s bins. Background = layer-1 frames: <span style="background:var(--clean-band);padding:0 4px">clean</span> <span style="background:var(--fail-band);padding:0 4px">not clean</span> <span style="background:var(--absent-band);padding:0 4px">absent</span>`;
+}
+function drawPSTH(){
+  $('actTitle').textContent='Event-aligned raster + PSTH'; const c=$('act');
+  if(!S.psth){ empty(c,'loading…'); return; }
+  const P=S.psth, nT=P.n_shown, rmax=Math.max(1,maxOf([P.rate_hz]));
+  const p=plot(c,{x:P.window_ms, y:[0,nT*1.6+1], xl:'time from event (ms)', yl:'trial'});
+  p.ctx.fillStyle=css('--unit');
+  P.raster.forEach((tr,i)=>{ for(const t of tr) p.ctx.fillRect(p.X(t)-.6, p.Y(nT*.6+i+1), 1.2, Math.max(1,p.Y(0)-p.Y(1))); });
+  const ys=P.rate_hz.map(v=>v/rmax*nT*.55); line(p, P.t_ms, ys, css('--ink'), 1.8);
+  p.ctx.strokeStyle=css('--muted'); p.ctx.beginPath(); p.ctx.moveTo(p.X(0),p.box.y); p.ctx.lineTo(p.X(0),p.box.y+p.box.h); p.ctx.stroke(); p.done();
+  $('actNote').textContent = `${P.n_trials} events${P.n_shown<P.n_trials?` (raster shows ${P.n_shown})`:''} · PSTH peak ${fmt(rmax,1)} Hz (black, scaled)`;
+}
+
+// ---------------------------------------------------------------- ACG
+function drawACG(){
+  const c=$('acg'), a=S.cd.acg, th=S.sess.thresholds;
+  if(!a.counts.length){ empty(c,'too few spikes'); $('acgNote').textContent=''; return; }
+  const bw = a.lag_ms.length>1 ? a.lag_ms[1]-a.lag_ms[0] : 1;
+  const p=plot(c,{x:[a.lag_ms[0]-bw/2, a.lag_ms.at(-1)+bw/2], y:[0, Math.max(1,maxOf([a.counts])*1.1)], xl:'lag (ms)', yl:'count'});
+  vband(p, -th.refractory_ms, th.refractory_ms, css('--fail-band'));
+  bars(p, a.lag_ms, a.counts, bw, css('--unit')); p.done();
+  const i=S.cd.isi; $('acgNote').innerHTML = `±${th.refractory_ms} ms shaded · ${i.n_viol} ISIs &lt; ${th.refractory_ms} ms, ratio ${fmt(i.hill_ratio,3)} → <b class="${i.passes===false?'bad':''}">${i.passes==null?'—':i.passes?'passes':'fails'}</b>`;
+}
+
+// ---------------------------------------------------------------- pairs + CCG
+function drawPairs(){
+  const ps=S.cd.pairs||[], me=S.cd.clu_id, nbs=(S.cd.isolation||{}).other_clu||[];
+  $('ccg').style.display='none'; $('ccgNote').textContent='';
+  const seen=new Set(ps.map(p=>p.a===me?p.b:p.a));
+  const extra=nbs.filter(b=>!seen.has(b));
+  if(!ps.length && !extra.length){ $('pairs').innerHTML='No pairs measured and no neighbours.'; $('pairNote').textContent=''; return; }
+  $('pairNote').textContent = `${ps.length} in pairs.json`;
+  const rowOf = id => S.rows.find(r=>r.clu_id===id) || {};
+  let h = '<table><thead><tr><th>with</th><th>kind</th><th>criterion</th><th>action</th><th>evidence</th><th></th></tr></thead><tbody>';
+  for(const p of ps){ const o=p.a===me?p.b:p.a, ev=p.evidence||{};
+    const evs=Object.entries(ev).map(([k,v])=>`${k} ${fmt(v,2)}`).join(', ');
+    h += `<tr title="${(p.why||'').replace(/"/g,'&quot;')}"><td>${o} <span class="chip ${rowOf(o).decision||''}">${(rowOf(o).decision||'').replace('LOW_SPIKE_COUNT','LOW')}</span></td><td>${p.channel||''}</td><td class="${p.criterion_met?'bad':''}">${p.criterion_met?'met':'not met'}</td><td>${p.action||''}</td><td>${evs}</td><td><button data-o="${o}">CCG</button></td></tr>`; }
+  for(const o of extra) h += `<tr><td>${o} <span class="chip ${rowOf(o).decision||''}">${(rowOf(o).decision||'').replace('LOW_SPIKE_COUNT','LOW')}</span></td><td>neighbour</td><td colspan="3" class="note">shares the peak channel; no pair record</td><td><button data-o="${o}">CCG</button></td></tr>`;
+  $('pairs').innerHTML = h+'</tbody></table>';
+  $('pairs').querySelectorAll('button[data-o]').forEach(b=>b.onclick=()=>showPair(me, +b.dataset.o));
+}
+async function showPair(a,b){
+  const c=$('ccg'); c.style.display='block'; empty(c,'loading…');
+  let g; try{ g = await api(`/api/ccg/${encodeURIComponent(S.sess.name)}/${a}/${b}`); }catch(e){ $('ccgNote').textContent=e.message; return; }
+  if(!g.counts.length){ empty(c,'no spikes'); return; }
+  const bw=g.lag_ms[1]-g.lag_ms[0];
+  const p=plot(c,{x:[g.lag_ms[0]-bw/2, g.lag_ms.at(-1)+bw/2], y:[0,Math.max(1,maxOf([g.counts])*1.1)], xl:`lag of ${b} relative to ${a} (ms)`, yl:'count'});
+  vband(p, -g.centre_ms, g.centre_ms, css('--fail-band'));
+  for(const s of [-1,1]) vband(p, s>0?g.flank_ms[0]:-g.flank_ms[1], s>0?g.flank_ms[1]:-g.flank_ms[0], css('--clean-band'));
+  bars(p, g.lag_ms, g.counts, bw, css('--unit'));
+  if(g.stats) hline(p, g.stats.lam/((2*g.centre_ms)/bw+1), css('--ink'));
+  p.done();
+  const s=g.stats;
+  $('ccgNote').innerHTML = s ? `centre ±${g.centre_ms} ms (orange) vs flanks ${g.flank_ms[0]}–${g.flank_ms[1]} ms (blue): z = <b>${fmt(s.z,2)}</b>, observed ${fmt(s.obs,0)} vs expected ${fmt(s.lam,1)}, n_min ${s.n_min}. Dashed = flank rate per bin.` : 'CCG statistic not measurable (too few spikes or an empty flank).';
+}
+
+// ---------------------------------------------------------------- frames
+function setFrameUI(){ const n=(S.cd.isolation||{}).n_frames||0; $('frame').max=Math.max(0,n-1); $('frame').value=S.frame;
+  const W=S.sess.window_sec; $('frameLbl').textContent = n ? `frame ${S.frame+1}/${n}${W?` · ${S.frame*W}–${(S.frame+1)*W} s`:''}` : 'no frames'; }
+function setFrame(f){ if(!S.cd) return; const n=(S.cd.isolation||{}).n_frames||0; if(!n) return; S.frame=(f+n)%n; drawLegend(); drawLR(); drawPCs(); drawWaveform(); if(S.tab==='rate') drawActivity(); setFrameUI(); }
+function stopPlay(){ if(S.play){ clearInterval(S.play); S.play=null; $('playF').textContent='Play'; } }
+function togglePlay(){ if(S.play) return stopPlay(); S.play=setInterval(()=>setFrame(S.frame+1), 700); $('playF').textContent='Pause'; }
+$('prevF').onclick=()=>{stopPlay(); setFrame(S.frame-1);}; $('nextF').onclick=()=>{stopPlay(); setFrame(S.frame+1);};
+$('playF').onclick=togglePlay; $('frame').oninput=e=>{stopPlay(); setFrame(+e.target.value);};
+
+// ---------------------------------------------------------------- keys, theme, resize
+function step(d){ if(!S.view.length) return; const i=S.view.findIndex(r=>r.clu_id===S.clu); const j=Math.max(0,Math.min(S.view.length-1,(i<0?0:i+d))); select(S.view[j].clu_id); }
+document.addEventListener('keydown', e=>{
+  if(e.target.matches('input,select')) return;
+  if(e.key==='ArrowDown'||e.key==='j'){ e.preventDefault(); step(1); }
+  else if(e.key==='ArrowUp'||e.key==='k'){ e.preventDefault(); step(-1); }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); stopPlay(); setFrame(S.frame+1); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); stopPlay(); setFrame(S.frame-1); }
+  else if(e.key===' '){ e.preventDefault(); togglePlay(); }
+  else if(e.key==='a' && S.cd){ const v=!S.nbOn.every(Boolean); S.nbOn=S.nbOn.map(()=>v); drawLegend(); drawLR(); drawPCs(); drawWaveform(); }
+  else if(e.key==='?'){ $('help').style.display='flex'; }
+  else if(e.key==='Escape'){ $('help').style.display='none'; }
+});
+$('helpBtn').onclick=()=>$('help').style.display='flex';
+$('help').onclick=e=>{ if(e.target.id==='help') $('help').style.display='none'; };
+try{ const t=localStorage.getItem('ua-theme'); if(t) document.documentElement.dataset.theme=t; }catch(_){}
+$('themeBtn').onclick=()=>{ const cur=document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+  const nx=cur==='dark'?'light':'dark'; document.documentElement.dataset.theme=nx; try{localStorage.setItem('ua-theme',nx);}catch(_){} drawProbe(); if(S.cd) drawAll(); };
+let rz; window.addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{ drawProbe(); if(S.cd) drawAll(); },120); });
+init();
+</script>
+</body>
+</html>
