@@ -25,7 +25,7 @@ verifiably stationary — true drift exactly zero — gap blocks report 1.67 um
 against 0.33 um for populated blocks of the SAME recordings. That is 5.0x
 inflation of a quantity whose true value is nought. On 147 real sessions the
 same paired, within-session contrast is 9.46 um against 6.88 um (Wilcoxon
-p = 0.002), and 72 of the 147 have a bank gap.
+p = 0.002), and 51 of the 147 sessions contain at least one gap block.
 
 EXCLUSION IS NOT A FIX, AND THIS IS THE WHOLE CAVEAT. What the code does is
 identify the affected blocks from the geometry and drop them from the session
