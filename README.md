@@ -229,16 +229,6 @@ These utilities identify Kilosort drift blocks that fall in sparsely populated d
 
 ---
 
-## Limitations
-
-- **Validation is pipeline-specific.** UnitAssay was calibrated and benchmarked using CatGT preprocessing and Kilosort 4. Other pipelines require independent validation.
-- **Ground truth is synthetic.** Accuracy metrics come from synthetic recordings. Real recordings do not provide cluster-level ground truth.
-- **Mixed clusters are not assigned a specific cause when the evidence is insufficient.** In particular, UnitAssay does not claim that within-cluster heterogeneity necessarily reflects an over-merge.
-- **Low-spike-count clusters are not fully adjudicated.** The current floor is 240 spikes because the within-cluster comparison requires two groups with sufficient samples.
-- **Drift is identified and annotated, not corrected.**
-- **Pairwise errors require pairwise interpretation.** Per-cluster labels cannot fully represent all duplicate or over-split relationships.
-
----
 
 ## Reproducibility
 
