@@ -28,7 +28,7 @@ def _setup_logging(verbose: bool) -> None:
 
 
 @click.group()
-@click.version_option(package_name="mind-snag")
+@click.version_option(package_name="unitassay")
 def cli() -> None:
     """unitassay screen: per-frame isolation quality from a sorter's output."""
     pass
