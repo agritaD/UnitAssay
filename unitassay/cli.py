@@ -163,7 +163,8 @@ def main(argv=None):
     from collections import Counter
     c = Counter(r_['decision'] for r_ in rows)
     print(f"{timing['n_clusters']} clusters   "
-          f"PASS {c['PASS']}  FAIL {c['FAIL']}")
+          f"PASS {c['PASS']}  FAIL {c['FAIL']}  "
+          f"LOW_SPIKE_COUNT {c['LOW_SPIKE_COUNT']}")
     print(f"screen {timing['screen_sec']}s   curate {timing['curate_sec']}s   "
           f"total {timing['total_sec']}s")
     ps = summarise_pairs(pairs)
