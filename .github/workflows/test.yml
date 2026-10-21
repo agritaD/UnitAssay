@@ -37,10 +37,24 @@ jobs:
       - name: Import from outside the source tree
         run: cd /tmp && python -c "import unitassay; print(unitassay.__version__)"
 
+      - name: Compile shipped Python sources
+        run: |
+          python -m compileall -q unitassay examples tests
+
       - name: CLI entry points
         run: |
           unitassay run --help
           unitassay batch --help
+          unitassay view --help
+          python -m unitassay.screen --help
+
+      - name: Drift CLI entry point
+        run: |
+          set +e
+          python -m unitassay.drift
+          code=$?
+          set -e
+          test "$code" -eq 2
 
       - name: The shipped fixture runs end to end
         # the README's first command, from the installed wheel
