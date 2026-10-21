@@ -8,7 +8,7 @@ ones that are not — over-split, duplicate, contaminated — rather than return
 a bare keep/reject or a table of metrics.
 
 It also says when it does not know. That is the point: on a synthetic corpus
-with ground truth it reaches **83.7% balanced accuracy**, not 100%, and the
+with ground truth it reaches **82.2% balanced accuracy**, not 100%, and the
 clusters it cannot adjudicate are labelled as such instead of guessed.
 
 ---
@@ -34,8 +34,8 @@ script.
 
 ```
 SpikeGLX  ->  CatGT  ->  Kilosort 4  ->  unitassay
-                         Th_universal 7.5, Th_learned 8.5, Th_single_ch 6
-                         nblocks 1, dmin 20, dminx 32, nearest_chans 10
+                         Kilosort 4.0.22: Th_universal 7.5, Th_learned 8.5,
+                         nblocks 5; every other setting at its default
 ```
 
 **This is not just provenance — some thresholds are calibrated against it, and
@@ -51,7 +51,7 @@ lose a rule. Two consequences worth knowing:
 
 * the duplicate channel is the one at risk; the within-cluster and neighbour
   rules do not depend on this null;
-* the published accuracy (83.7% balanced) was measured on this pipeline, and
+* the published accuracy (82.2% balanced) was measured on this pipeline, and
   does not automatically transfer to another one.
 
 If you run a different preprocessing chain and want to know whether the
@@ -338,23 +338,26 @@ over-merge would be wrong about two thirds of the time.
 
 ## Performance
 
-Benchmarked on a synthetic corpus with ground truth (28 recordings, 3,696
-clusters ≥ 240 spikes, 30.8% clean):
+Benchmarked at commit `bae1fbc` on a synthetic corpus with ground truth
+(28 MEArec recordings sorted by Kilosort 4 with nblocks 5; 3,664 clusters
+≥ 240 spikes, 1,134 of them (30.9%) clean). All three methods are scored on the
+same clusters:
 
-| tool | sensitivity | specificity | balanced |
+| method | sensitivity | specificity | balanced |
 |---|---|---|---|
-| sorter label | 84.5% | 59.5% | 72.0% |
-| three fixed thresholds | 83.2% | 58.7% | 70.9% |
-| isolation alone | 76.8% | 73.2% | 75.0% |
-| **unitassay** | **81.3%** | **86.1%** | **83.7%** |
+| Kilosort 4 `good` label | 82.5% | 58.2% | 70.4% |
+| SpikeInterface QC (ISI ratio ≤ 0.5, presence ≥ 0.8, amplitude cutoff ≤ 0.1) | 82.5% | 58.7% | 70.6% |
+| **unitassay PASS** | **78.6%** | **85.8%** | **82.2%** |
 
 Precision and F1 are deliberately absent: both move with the corpus's clean
 rate, so they describe the recording as much as the tool. Sensitivity,
 specificity and balanced accuracy are prevalence-independent and transfer.
 
-**Cost**, 147 real sessions, 53,428 clusters, run from scratch:
-114 ms per cluster to isolate, 89 ms to curate — 32 minutes wall clock on 6
-workers.
+**Cost**, 147 real sessions, 53,346 clusters, run from scratch at `bae1fbc`
+(CPU only): median 92 ms per cluster to isolate (layer 1) and 74 ms to curate
+(layer 2), 63 s per session for both; the whole batch took 29.5 minutes wall
+clock on 6 workers. Peak memory 1.7 GB. Time grows with recording duration,
+not with the number of clusters.
 
 ## Limitations
 
