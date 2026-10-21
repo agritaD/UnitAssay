@@ -379,6 +379,13 @@ not with the number of clusters.
 - **Ground truth is synthetic.** Real recordings have no ground truth, so the
   147-session numbers are counts and proportions, never accuracies.
 
+## Paper code
+
+The figure code, the synthetic-data recipe and the ground-truth script behind
+the paper are in a companion repository,
+[MIND_UnitAssay_paper](https://github.com/agritaD/MIND_UnitAssay_paper). It
+uses this package at tag `v0.1.0-paper`.
+
 ## Authors
 
 Developed by **Agrita Dubey** and **Qiao (Betty) Xu**, Pesaran Lab, University

@@ -6,3 +6,6 @@ dist/
 .pytest_cache/
 .DS_Store
 ._*
+
+# paper code lives in MIND_UnitAssay_paper
+paper/
