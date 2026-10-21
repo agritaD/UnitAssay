@@ -45,7 +45,7 @@ dev = ["pytest>=7.0"]
 # dependency list above and nothing else.
 
 [project.urls]
-Homepage = "https://github.com/agritaD/unitassay"
+Homepage = "https://github.com/agritaD/UnitAssay"
 
 [project.scripts]
 unitassay = "unitassay.cli:main"
