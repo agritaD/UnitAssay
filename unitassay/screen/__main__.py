@@ -1,4 +1,4 @@
-"""Allow running as `python -m mind_snag`.
+"""Allow running as `python -m unitassay.screen`.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
 Developed with Claude (Anthropic).
