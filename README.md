@@ -1,4 +1,4 @@
-# unitassay
+# UnitAssay
 
 **Measure and curate spike-sorted units — and say which ones it cannot decide.**
 
