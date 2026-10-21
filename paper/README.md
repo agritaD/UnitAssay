@@ -103,8 +103,3 @@ with and without gap blocks), and `n_gap_blocks`. The functions in
   `rule_label` stored by an older run. Rule 6 is not drawn.
 - `rule_id` is the rule engine's id, so a `LOW_SPIKE_COUNT` cluster can still
   carry, for example, `5d`. Count by `decision` and label by `rule_id`.
-- **Known issue in `layer1_screen.pass_rates_by_label`.** It looks up the sorter
-  label with the SortData file number, which is `clu_id + 1`, so the
-  L-ratio-by-label split pairs each cluster with its neighbour's label. The paper
-  reports the corrected split. The function is kept unchanged so that the
-  published figure stays reproducible.

@@ -76,6 +76,13 @@ regression, **not a benchmark** — four hand-made clusters say nothing about
 accuracy. Rebuild it with `python tests/make_fixture.py`; the seed is fixed and
 it regenerates byte-for-byte.
 
+## Try it on example data
+
+Two example Kilosort 4 outputs, one real recording and one synthetic recording
+with ground truth, can be downloaded from this repository's Releases page.
+`examples/quickstart.py` curates both and walks through the output; see
+[examples/README.md](examples/README.md).
+
 ## Use
 
 One recording:
