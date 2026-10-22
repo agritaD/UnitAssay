@@ -48,9 +48,7 @@ Th_learned   = 8.5
 nblocks      = 5
 ```
 
-All other Kilosort settings were left at their defaults.
-
-Some UnitAssay thresholds were calibrated using this preprocessing and sorting pipeline. In particular, the overlap-based identity test uses a recording-specific far-pair null that is sensitive to preprocessing. UnitAssay can be run on other compatible Phy-style outputs, but the published performance does not automatically transfer to a different preprocessing or sorting pipeline without validation.
+All other Kilosort settings were left at their defaults. Some UnitAssay thresholds were calibrated using this preprocessing and sorting pipeline. The benchmark reported below uses this configuration.
 
 ---
 
@@ -86,26 +84,38 @@ rows = curate.curate_session(
     isolation_dir="isolation",
 )
 
-clean = [row for row in rows if row["outcome"] == "clean"]
+clean = [row for row in rows if row["error_class"] == "clean"]
 ```
 
 ---
 
 ## Input
 
-UnitAssay reads a standard Phy-style sorter directory containing:
+UnitAssay reads a standard Kilosort/Phy-style sorter directory containing:
 
 ```text
 spike_times.npy
 spike_clusters.npy
+spike_templates.npy
+amplitudes.npy
 pc_features.npy
 pc_feature_ind.npy
 templates.npy
 channel_positions.npy
+channel_map.npy
+whitening_mat_inv.npy
 params.py
 ```
 
-The raw voltage file is not required for the main curation workflow.
+A cluster-label file is also used when present, for example:
+
+```text
+cluster_KSLabel.tsv
+cluster_group.tsv
+cluster_groups.csv
+```
+
+The raw voltage file is not required for the curation workflow.
 
 ---
 
@@ -123,13 +133,13 @@ The curation layer applies a sequential decision flow that evaluates five princi
 
 1. **Identity / re-detection** — whether the same spikes have been counted under another cluster.
 2. **Refractory structure** — whether the spike train is compatible with a single neuron.
-3. **Within-cluster composition** — whether the cluster contains separable sub-populations.
+3. **Within-cluster composition** — whether the cluster contains separable subpopulations.
 4. **Isolation / contamination** — whether the cluster remains isolated relative to a reference channel.
 5. **Neighbor relationships** — whether an apparent isolation failure is supported or overturned by comparisons with neighboring clusters.
 
 Additional guard and stability branches handle incomplete evidence and failures of isolation stability.
 
-The decision flow separates the **test that fired** from the **error class assigned to the cluster**. This distinction is deliberate: a measured feature such as bimodality or contamination does not, by itself, establish the biological origin of the error.
+The decision flow separates the **test that issued the decision** from the **error class assigned to the cluster**.
 
 ---
 
@@ -139,19 +149,19 @@ Each run writes a cluster-level curation output (`curated.json`) and pair-level 
 
 ### Cluster-level decisions
 
-The main cluster-level decision is:
+Each cluster receives one of three decisions:
 
 - `PASS` — accepted as a usable single unit by the curation flow.
 - `FAIL` — rejected by the curation flow.
 - `LOW_SPIKE_COUNT` — below the spike-count floor required for the curation tests.
 
-The output also records the rule that issued the decision, the evidence produced by individual tests, tests that could not run, and a higher-level outcome label.
+The output also records the rule that issued the decision, the evidence produced by individual tests, tests that could not run, and an `error_class`.
 
-### Outcome labels
+### Error classes
 
 The current reporting taxonomy includes:
 
-| outcome | interpretation |
+| error_class | interpretation |
 |---|---|
 | `clean` | no curation criterion identified a problem |
 | `duplicate` | spikes are already represented by another cluster |
@@ -160,33 +170,31 @@ The current reporting taxonomy includes:
 | `intermittent_presence` | isolation is not maintained across the recording |
 | `low_spike_count` | too few spikes for the full curation procedure |
 
-`mixed_cluster` is intentionally conservative. UnitAssay does not label these clusters as over-merged when the available evidence cannot reliably distinguish an over-merge from other causes of within-cluster heterogeneity.
+`mixed_cluster` is intentionally conservative: UnitAssay does not assign a specific underlying sorting error when the available evidence does not resolve the cause of within-cluster heterogeneity.
 
 ### Pair-level output
 
 Duplication and over-splitting are inherently pairwise. UnitAssay therefore writes `pairs.json` in addition to the per-cluster output.
 
-Pair-level records preserve the two cluster IDs, the comparison channel, whether the criterion was met, the measured evidence, and the recommended action. This allows pairwise evidence to be inspected without forcing it into a single-cluster label.
+Pair-level records preserve the two cluster IDs, the comparison channel, the measured evidence, and the recommended action.
 
 ---
 
-## Example data
+## Smoke test
 
-A small synthetic fixture ships with the repository and can be used as a smoke test:
+A small synthetic fixture ships with the repository:
 
 ```bash
 unitassay run --ks-dir tests/fixture --out /tmp/unitassay_demo
 ```
 
-The fixture is intended to verify that the installation and decision flow run correctly. It is **not** an accuracy benchmark.
+A successful run reports:
 
-Two larger example Kilosort 4 outputs — one real recording and one synthetic recording with ground truth — are provided through the repository Releases page. See [examples/README.md](examples/README.md) for the quick-start workflow.
-
-```bash
-python examples/quickstart.py --data /path/to/unitassay_example_data
+```text
+4 clusters   PASS 2  FAIL 1  LOW_SPIKE_COUNT 1
 ```
 
-The example workflow reports curation decisions, the evidence behind failures, pairwise findings, drift estimates, and ground-truth performance for the synthetic example.
+The fixture verifies installation and the end-to-end decision flow. It is not an accuracy benchmark.
 
 ---
 
@@ -202,13 +210,11 @@ All methods below were evaluated on the same set of clusters.
 | SpikeInterface QC | 82.5% | 58.7% | 70.6% |
 | **UnitAssay PASS** | **78.6%** | **85.8%** | **82.2%** |
 
-SpikeInterface QC used ISI ratio ≤ 0.5, presence ratio ≥ 0.8, and amplitude cutoff ≤ 0.1.
-
-These values describe performance on the synthetic benchmark and validated preprocessing/sorting pipeline above. They should not be assumed to transfer unchanged to other probes, preparations, sorters, or preprocessing pipelines.
+SpikeInterface QC used ISI-violation ratio ≤ 0.5, presence ratio ≥ 0.8, and amplitude cutoff ≤ 0.1.
 
 ### Computational cost
 
-Across 147 real recording sessions containing 53,346 clusters, the median processing time was 92 ms per cluster for screening and 74 ms per cluster for curation. The combined workflow required a median of 63 s per session in the benchmarked configuration.
+Across 147 real recording sessions containing 53,346 clusters, median processing times were 93 ms per cluster for Layer 1, 74 ms per cluster for Layer 2, and 166 ms per cluster for the complete UnitAssay pipeline. Median total processing time was 62 s per recording session.
 
 ---
 
@@ -225,20 +231,17 @@ print(report["range_90_gap_excluded"])
 
 These utilities identify Kilosort drift blocks that fall in sparsely populated depth gaps in the channel map and report drift summaries with those blocks excluded.
 
-**Exclusion is not correction.** If a block lies in a depth range without recording sites, UnitAssay can flag or exclude that estimate, but it cannot reconstruct the missing drift measurement. Correcting the underlying behavior requires changes to the sorter and re-sorting.
+**Exclusion is not correction.** If a block lies in a depth range without recording sites, UnitAssay can flag or exclude that estimate, but it cannot reconstruct the missing drift measurement.
 
 ---
 
-
 ## Reproducibility
 
-The paper analyses use the UnitAssay version tagged:
+The analyses reported in the accompanying manuscript use the UnitAssay version tagged:
 
 ```text
 v0.1.0-paper
 ```
-
-The figure code, synthetic-data recipe, and ground-truth analysis used for the manuscript are maintained separately in the companion research repository `MIND_UnitAssay_paper`.
 
 For published analyses, use the paper tag rather than the moving `main` branch.
 
