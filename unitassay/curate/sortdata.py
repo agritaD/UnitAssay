@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """curate/sortdata.py
 
-Canonical reader for mind_snag's per-cluster SortData.h5 files (v2 HDF5
+Canonical reader for the screen layer's per-cluster SortData.h5 files (v2 HDF5
 format: frame_0000, frame_0001, ... groups, each with unit/noise/other
 PC-feature datasets), plus the noise-channel identification helper.
 Consolidated 2026-07-13 from ~4 independent readers of the same format
@@ -11,7 +11,7 @@ process_sortdata) scattered across noise-fail / neighbor-fail scripts.
 INDEXING CONVENTION (this is the ONE place this conversion happens):
   - clu_id is ALWAYS 0-indexed, matching spike_clusters.npy / templates.npy
     / pc_feature_ind.npy / amplitudes.npy (KS4-native).
-  - ms_id is ALWAYS 1-indexed = clu_id + 1, matching mind_snag's
+  - ms_id is ALWAYS 1-indexed = clu_id + 1, matching the screen layer's
     "{ms_id}.SortData.h5" filename convention.
   - Every public function here takes clu_id (0-indexed) as its parameter
     and does the +1 internally, exactly once, right where the filename is
@@ -29,7 +29,6 @@ difference, and stays in its own reader (_load_ms_v1 family) until/unless
 someone confirms no v1-format sessions still need active analysis.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 
@@ -70,7 +69,7 @@ def sortdata_path(ks4_path, clu_id, isolation_dir='isolation'):
 
 
 def noise_channel(templates, pc_feat_ind, clu_id):
-    """Min-energy local channel for clu_id (0-indexed) -- mind_snag's
+    """Min-energy local channel for clu_id (0-indexed) -- the screen layer's
     definition of a cluster's "noise channel" (weakest local signal)."""
     local_chs = pc_feat_ind[clu_id]
     tmpl_local = templates[clu_id][:, local_chs]
@@ -154,7 +153,7 @@ def load_ms_frames(ks4_path, clu_id, isolation_dir='isolation'):
 
 def worst_frame(result):
     """Given load_ms_frames()'s return dict, pick the frame with the
-    highest max-over-neighbors L-ratio (mind_snag's own "worst frame" for
+    highest max-over-neighbors L-ratio (the screen layer's "worst frame" for
     feature-space visualization), falling back to the first valid frame.
     Returns None if there's no valid frame at all."""
     n_others = result['lr_others'].shape[0]
@@ -222,7 +221,7 @@ def process_sortdata_all_frames(sf_path):
 
 
 def frame_matrix(sd):
-    """The per-frame L-ratio matrix mind_snag judges, and its two masks.
+    """The per-frame L-ratio matrix the screen layer judges, and its two masks.
 
     Returns (mat, absent, clean):
       mat     (1 + n_others, n_frames): row 0 is unit-vs-noise, then one row per
@@ -230,8 +229,8 @@ def frame_matrix(sd):
               UNIT is present (an absent neighbour cannot contaminate it)
       absent  (n_frames,) bool: the unit had no spikes in the frame
       clean   (n_frames,) bool: every row below L_RATIO_MS_THRESH. An absent
-              frame is never clean -- NaN < x is False -- which is how mind_snag
-              counts absence against the unit.
+              frame is never clean -- NaN < x is False -- which is how the
+              screen layer counts absence against the unit.
 
     Factored out of channel_fields() (2026-10-05) so that `unitassay view` can
     show WHICH frames were clean without a second copy of this rule.
@@ -247,7 +246,7 @@ def frame_matrix(sd):
 
 
 def channel_fields(sd):
-    """mind_snag's per-frame rules, plus the frame COVERAGE the taxonomy needs.
+    """The screen layer's per-frame rules, plus the frame COVERAGE the taxonomy needs.
 
     `absent_frame_frac` and `clean_frac_when_present` are computed here, from the
     `mat`/`absent` this function already builds, because computing them anywhere
@@ -255,7 +254,7 @@ def channel_fields(sd):
 
     WHY THEY MATTER. A NaN in the noise row means the unit had NO SPIKES in that
     frame -- it went silent, drifted out of range, or KS4 stopped matching its
-    template. mind_snag counts such a frame AGAINST the clean fraction ("no
+    template. The screen layer counts such a frame AGAINST the clean fraction ("no
     spikes = drifted away = not isolated"), so a cluster absent from more than
     1 - ISOLATED_T_RATIO of frames CANNOT reach the threshold however clean its
     present frames are. That is a COVERAGE failure, not a contamination one, and
@@ -269,10 +268,9 @@ def channel_fields(sd):
     It changes an admission of ignorance into a stated disagreement with
     `presence_ratio`, which is the whole point for behaviour-modulated units.
 
-    They were already computed for the 50 real sessions in
-    m260813_lratio_channel_all.py and nowhere on the synthetic side, so
-    `intermittent_presence` fired on 41 real clusters and 0 synthetic ones --
-    not because the synthetic corpus lacks intermittent units (it has a
+    They had been computed for 50 real sessions and nowhere on the synthetic
+    side, so `intermittent_presence` fired on 41 real clusters and 0 synthetic
+    ones -- not because the synthetic corpus lacks intermittent units (it has a
     recording built of them) but because nobody measured this there.
     """
     if sd is None or sd['n_frames'] == 0:
@@ -310,9 +308,9 @@ def channel_fields(sd):
                     if present.any() else 0.0))
 
 
-# mind_snag's own aggregation constants, restated here because the two that
-# matter are not in curate/constants: L_RATIO_MS_THRESH is (auto_curate.py), and
-# MS_FRAME_FRAC is 1 - ISOLATED_T_RATIO -- failing more than that many frames is
+# The screen layer's own aggregation constants, restated here because the two
+# that matter are not in curate/constants: L_RATIO_MS_THRESH is (auto_curate.py),
+# and MS_FRAME_FRAC is 1 - ISOLATED_T_RATIO -- failing more than that many frames is
 # what sinks a cluster.
 MS_FRAME_FRAC = 1.0 - ISOLATED_T_RATIO
 
@@ -320,9 +318,7 @@ MS_FRAME_FRAC = 1.0 - ISOLATED_T_RATIO
 def flagged_neighbours(sf_path):
     """Every neighbour that ACCUSES this cluster, not just the argmax.
 
-    Moved into curate 2026-09-04 (task A11) from
-    analysis/m260821_rule5_scope_all_neighbours.py so `curate_session` can build
-    rule 5's inputs itself. Behaviour is unchanged.
+    Lives in curate so `curate_session` can build rule 5's inputs itself.
 
     WHAT COUNTS AS AN ACCUSER matters more than it looks, and the two obvious
     choices disagree by a factor of three:
@@ -332,11 +328,11 @@ def flagged_neighbours(sf_path):
                                 the frames badly and the rest cleanly can
                                 average under threshold.
       crosses in >= 40% of frames
-                                mind_snag's OWN aggregation -- failing more than
+                                the screen layer's OWN aggregation -- failing more than
                                 1 - ISOLATED_T_RATIO of frames is what sinks a
                                 cluster.
 
-    The UNION of the two is used. mind_snag's is the criterion that actually
+    The UNION of the two is used. The screen layer's is the criterion that actually
     condemns a cluster, and the mean criterion is what selected the one
     neighbour originally tested, so dropping either would understate the scope
     or lose the dominant neighbour itself. A third, looser choice (crossed in
@@ -382,9 +378,6 @@ def flagged_neighbours(sf_path):
 
 def aligned_features(pc_feat, pc_feat_ind, clu_a, clu_b, spike_clu, n_pc=3):
     """PC features for two clusters on the channels they SHARE.
-
-    Moved into curate 2026-09-04 (task A11) from
-    analysis/m260729_between_cluster_real_check.py. Behaviour unchanged.
 
     The shared-channel restriction is what makes the two feature sets
     comparable at all: KS4 stores each cluster's features on its own local

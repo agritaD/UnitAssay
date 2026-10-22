@@ -1,8 +1,7 @@
 """The between-cluster verdict gives the L-ratio precedence on a conflict.
 
-Agrita, 2026-10-01: the within-cluster test has resolved dip/L-ratio conflicts
-in favour of the L-ratio since 2026-09-03; the between-cluster test returned
-None instead, which sent 2,518 real clusters to rule 5d as "evidence
+The within-cluster test resolves dip/L-ratio conflicts in favour of the
+L-ratio; the between-cluster test used to return None instead, which sent 2,518 real clusters to rule 5d as "evidence
 incomplete". None must now mean only "the test could not run".
 """
 import math

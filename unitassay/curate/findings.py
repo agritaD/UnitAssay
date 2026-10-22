@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """curate/findings.py — every finding about a cluster, evaluated INDEPENDENTLY.
 
-Agrita, 2026-09-02: "can we have rules fired in parallel rather than sequential?"
+Every rule is evaluated, in parallel rather than in sequence.
 
 WHAT THIS IS, AND WHAT IT DELIBERATELY IS NOT
 ---------------------------------------------
@@ -24,9 +24,8 @@ put a stable, weeks-old tool at risk to fix a problem that is not in it.
 
 WHY PARALLEL MATTERS FOR THE TAXONOMY
 -------------------------------------
-Agrita's principle (2026-09-02): the taxonomy should be OUTCOME-based, not
-mechanism-based, "because different rules evoking different mechanisms are
-required to arrive at one outcome". Measured, that is exactly right -- after
+The taxonomy is OUTCOME-based, not mechanism-based, because different rules
+evoking different mechanisms can arrive at one outcome. Measured, that holds -- after
 duplicates are attributed, contamination (79.4%), refractory violations (68.2%)
 and bimodality (48.7%) are ALL majority over-split. Three mechanisms, one
 outcome.
@@ -35,9 +34,8 @@ It also dissolves a question that had no honest answer sequentially: an
 over-split fragment is very often ALSO contaminated (median frac_other 0.148),
 and a single `sub_type` had to pick one. Here it reports both.
 
-THREE STATES, NOT TWO (fixed 2026-09-03, Agrita: "why the outcome was not
-arrived if the rule was run?")
------------------------------------------------------------------------------
+THREE STATES, NOT TWO
+---------------------
 A predicate returns True, False, DECLINED or None:
 
     True      the finding is present
@@ -62,7 +60,6 @@ ABSENT IS STILL NOT FALSE. A test that could not run must never read as
 assert. It just must not read as "declined" either.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 from unitassay.curate.constants import (ABSENT_FRAME_FRAC_THRESH, ISOLATED_T_RATIO,
@@ -120,12 +117,12 @@ def _two_populations(r):
 
 
 def _contaminated(r):
-    """mind_snag's within-cluster arm condemns it (rule 4).
+    """The screen's within-cluster arm condemns it (rule 4).
 
     NAMED FOR WHAT IT MEASURES, not for `dominant_source`'s value. The stored
-    value is 'noise', but #42 established the intruders are other NEURONS: the
-    clusters it condemns carry median frac_other 0.148 against frac_noise 0.015.
-    Calling this finding `noise` would repeat the mislabel that cost a day.
+    value is 'noise', but ground truth showed the intruders are usually other
+    NEURONS: the clusters it condemns carry median frac_other 0.148 against
+    frac_noise 0.015. Calling this finding `noise` would be a mislabel.
     """
     ds = r.get('dominant_source', _MISSING)
     ms = r.get('screen_pass', _MISSING)
@@ -196,7 +193,7 @@ def _intermittent(r):
 
 
 def _unattributed_ms_fail(r):
-    """mind_snag failed it and NO attribution channel explains why.
+    """The screen failed it and NO attribution channel explains why.
 
     Its own `dominant_source` says the L-ratio passed, so the failure came from
     a criterion with nothing for us to attribute it to -- in practice frame
@@ -332,11 +329,10 @@ def findings(r):
 # is not powered at these spike counts (AUC 0.476, needing ~1,900 spikes per
 # sub-population against an observed median of 319) and the auto-correlogram is
 # powered but not specific (AUC 0.547, because BOTH errors contaminate).
-# See m260902_within_cluster_ccg.py.
 #
-# NAMED `mixed_cluster`, Agrita's choice 2026-09-03, over `two_separable_groups`
-# and `bimodal_cause_unknown`. The earlier name was `split_or_merge_undetermined`
-# and she rejected it as confusing: over-split and over-merge are OPPOSITE
+# NAMED `mixed_cluster`, over `two_separable_groups`, `bimodal_cause_unknown`
+# and `split_or_merge_undetermined`. The last is confusing: over-split and
+# over-merge are OPPOSITE
 # errors, so a label that asks the reader to weigh one against the other reads
 # as incoherent. `mixed_cluster` names the cluster's state instead -- it is not
 # one clean unit -- and leaves the cause open.
@@ -362,8 +358,7 @@ OUTCOME_PRIORITY = (
 # `intermittent` and `high_drift` do. It was briefly an outcome
 # (`clean_untested_channels`) and that was the mechanism-as-outcome error again,
 # one level up: it split `clean` in two on a fact about the tool rather than a
-# fact about the neuron. Agrita, 2026-09-03: "I don't understand clean - channel
-# untested."
+# fact about the neuron.
 #
 # The distinction is still worth carrying -- the 83 synthetic clusters it marks
 # are 61.4% truly clean against plain clean's 73.5% -- but as a caveat ON clean,
@@ -371,8 +366,8 @@ OUTCOME_PRIORITY = (
 
 # Declared but essentially never assigned, and that is the point. Ground truth
 # holds 23 `noise_contaminated_primary` clusters and the tool identifies ONE:
-# there is no test for noise contamination, only for other-neuron contamination
-# (#42). A named outcome we almost never assign states the missing test; leaving
+# there is no test for noise contamination, only for other-neuron
+# contamination. A named outcome we almost never assign states the missing test; leaving
 # it out of the vocabulary would hide it.
 UNREACHED_OUTCOMES = ('noise_contaminated', 'noise_cluster')
 
@@ -385,7 +380,7 @@ def error_class(f):
             # L-ratio passed -- i.e. isolation NOT MAINTAINED OVER TIME, which is
             # exactly the paper's intermittent presence (Fig 4D). Reported as such
             # whether or not the coverage annotation also fired: no outcome may be
-            # "unattributed" (Agrita, 2026-10-01).
+            # "unattributed".
             if out == 'unattributed':
                 return 'intermittent_presence'
             return out

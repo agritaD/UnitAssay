@@ -11,7 +11,6 @@ statistic must equal the one written to pairs.json. A viewer that disagreed
 with the decision it displays would be worse than none.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 import json

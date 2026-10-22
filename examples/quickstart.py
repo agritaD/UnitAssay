@@ -23,7 +23,6 @@ Each step's result is checked against the reference run shipped with the data
 behind the paper.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 import argparse

@@ -46,7 +46,6 @@ no detector in this tool, so no record is emitted for it. Measured corpus-wide:
 new `decided_by` rule, not a new field.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 from unitassay.curate.constants import ccg_z_threshold
@@ -161,7 +160,7 @@ def pair_findings(rows):
                            action=ACTION[str(rid)])
             elif rec['criterion_met'] is None:
                 # THE ACCUSED CLUSTER NEVER REACHED THE NEIGHBOUR TEST. Accusers
-                # are computed for any cluster mind_snag blames on a neighbour,
+                # are computed for any cluster the screen blames on a neighbour,
                 # but an earlier rule can decide it first -- refractory or
                 # contamination, say -- and then rule 5 never runs. The pair was
                 # MEASURED and not ADJUDICATED, which is a different thing from

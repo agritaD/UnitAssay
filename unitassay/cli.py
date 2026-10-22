@@ -1,7 +1,6 @@
 """unitassay command line — screen, then curate, in one call.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 
     unitassay run   --ks-dir <sorter_output> --out <dir>
     unitassay batch --sessions <list.tsv> --out <root> [--n-jobs 6]
@@ -14,7 +13,6 @@ one subdirectory each, resuming only results from this version -- see
 `unitassay/batch.py`.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 import argparse

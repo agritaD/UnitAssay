@@ -9,7 +9,6 @@ see WHY a cluster passed or failed.
     unitassay view <out_dir>
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 from .data import Run, Session        # noqa: F401

@@ -7,15 +7,11 @@ test", "LDA-bimodal check", etc.). Verdict outcomes: LDL-bimodal (dip_pval <
 DIP_PVAL_THRESH AND l_ratio < L_RATIO_THRESH -- two real, separated sources)
 vs LDL-unimodal (either criterion fails to reject -- one source).
 
-Canonical bimodality test, agreed 2026-06-24 (m260624_overmerging.py) and
-2026-07-13 (extended to cover m260624_oversplitting.py's two-cluster case).
-Previously copy-pasted with identical math (but no shared import) across
-m260629_overmerging_examples.py, m260706_bimodal_isi_pass_v*.py,
-m260707_mindsnag_*.py, m260708_*.py, scan_genuine_overmerge.py, and
-m260624_oversplitting.py. Also hand-ported (necessarily, due to a package
-boundary -- see auto_curate.py's _is_lda_bimodal()) into the dev mind_snag
-copy at Drift_Figure_Code/mind_snag_dev_channel_assignment_v2/ -- that copy
-must be kept in sync with this file if the math here ever changes.
+The one bimodality test for both questions: over-merging (within one
+cluster) and over-splitting (between two clusters). The screen layer carries a
+self-contained port (screen/curation/overmerge.py and auto_curate.py's
+_is_lda_bimodal()); it must be kept in sync with this file if the math here
+ever changes.
 
 Method: LDA finds the direction maximising separation between two spike
 groups (in KS4 multichannel PC-feature space, N_PC PCs x n_local_channels);
@@ -52,11 +48,10 @@ function on both:
                                   unimodal and overlapping when the two
                                   clusters are combined -> same neuron
                                   split into two clusters -> caller applies
-                                  its own (inverted) threshold logic; see
-                                  m260624_oversplitting.py's AND-gate.
+                                  its own (inverted) threshold logic, an
+                                  AND-gate on the two.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 
@@ -83,8 +78,7 @@ def _lda_direction(fa, fb, d):
 
     Returns (w, reg) -- unit vector w and the regularization matrix used
     (callers reuse the same reg for the L-ratio covariance inverse, matching
-    the original m260624_overmerging.py / m260624_oversplitting.py formulas
-    exactly) -- or (None, reg) on failure.
+    the original over-merging / over-splitting formulas exactly) -- or (None, reg) on failure.
     """
     mu_a, mu_b = fa.mean(0), fb.mean(0)
     Sw = ((len(fa) - 1) * np.cov(fa.T) + (len(fb) - 1) * np.cov(fb.T)) / (len(fa) + len(fb) - 2)
@@ -127,12 +121,12 @@ def dip_lratio_between(fa, fb, min_spikes=MIN_SPIKES, min_group_spikes=None):
     None (default), behavior is byte-identical to the original: the floor is
     max(min_spikes // 4, 2). When set, the floor becomes
     max(min_spikes // 4, 2, min_group_spikes) instead. Added 2026-07-24 after
-    null-calibration (m260724_between_cluster_null_calibration.py) showed the
+    null calibration of the between-cluster test showed the
     L-ratio component false-fires ~90% of the time at n_per_group=50, d=30
     (this project's standard 30-dim multichannel feature space) -- the
     false-positive rate collapses to 0% once each group has >=75 spikes, with
     100-150 recommended as a safety margin. Default is left untouched so
-    existing callers (e.g. lda_dip_lratio(), the mind_snag-mirroring
+    existing callers (e.g. lda_dip_lratio(), the screen-mirroring
     retrieval-gate path) see zero change unless they explicitly opt in.
 
     Returns dict: dip_pval, l_ratio, proj (LDA projection, fa's points then
@@ -168,8 +162,8 @@ def dip_lratio_between(fa, fb, min_spikes=MIN_SPIKES, min_group_spikes=None):
 # BOTH with dip_pval=NaN -- no test at all. On the 50-session set that is
 # 14,403 of 17,290 judged clusters (83.3%), and the two untested branches are
 # treated OPPOSITELY: unimodal -> clean (10,758), multiway -> auto-FAIL via
-# curate() rule 1 (2,795). Agrita's decision (2026-08-10): close the gap with
-# ONE mechanism rather than describe it with more categories.
+# curate() rule 1 (2,795). The gap is closed with ONE mechanism rather than
+# described with more categories.
 #
 # THE MECHANISM. Dip-test COMPONENT PAIRS, for whatever k the model gives:
 #   k >= 3  -> every k(k-1)/2 pair, strongest evidence wins
@@ -179,13 +173,13 @@ def dip_lratio_between(fa, fb, min_spikes=MIN_SPIKES, min_group_spikes=None):
 # the same family as the rest of the pipeline, and the thresholds below are
 # validated against ground truth rather than assumed.
 #
-# EVIDENCE BEHIND THE PARAMETER CHOICES (see the universal-dip-plan memory):
+# EVIDENCE BEHIND THE PARAMETER CHOICES:
 #  - cov_type='diag'. Phase 0b: `full` costs d+d(d+1)/2 = 495 params per
 #    component at d=30, so BIC almost cannot afford k>=2 (median best_k=2,
 #    measured median BIC(k=2)-BIC(k=1) = +2132). `tied` cannot select k at all
 #    (5.6% pile up at the k=20 ceiling). `diag` costs 30 params/component and
 #    turns over properly (0.3% at ceiling, mode k=2-4).
-#  - max_k=8. Agrita's call, biologically motivated: >8 distinct neurons
+#  - max_k=8. Biologically motivated: >8 distinct neurons
 #    merged into one KS4 cluster is not plausible. It also bounds the pair
 #    family at 28, which matters because K is a POWER knob -- every extra pair
 #    widens the multiple-comparison family. 14.8% of clusters want k>8 under
@@ -221,8 +215,8 @@ def universal_dip_verdict(feats, min_spikes=MIN_SPIKES, min_group_spikes=None,
     (unimodal -> clean, multiway -> auto-FAIL via curate() rule 1).
 
     THE DESIGN IS DELIBERATELY MINIMAL, and that is an empirical result rather
-    than a preference. Validation on MEArec ground truth
-    (m260812_universal_dip_validation.py) compared this against a best-k +
+    than a preference. Validation on MEArec ground truth compared this
+    against a best-k +
     all-component-pairs version:
 
                           imposed k=2      all-pairs (max_k=8)
@@ -238,7 +232,7 @@ def universal_dip_verdict(feats, min_spikes=MIN_SPIKES, min_group_spikes=None,
     maximum statistic over nearly-guaranteed apparent structure. So: no BIC
     sweep, no pair enumeration, no max_k.
 
-    Multi-unit sensitivity (m260812_multiunit_merge_sensitivity): 100% for
+    Multi-unit sensitivity, on constructed merges: 100% for
     k=2, 3 and 4 constructed merges at realistic channel overlap (d>=12).
     Apparent shortfalls at d=6-9 came from combining units that barely overlap
     spatially, which are not realistic overmerge candidates. k>=5 is untested.
@@ -261,10 +255,9 @@ def universal_dip_verdict(feats, min_spikes=MIN_SPIKES, min_group_spikes=None,
     BLIND SPOT, not a clean pass (see below).
 
     `duration_sec` enables the satellite rate filter: a minority component
-    firing below `satellite_rate_hz` is not a candidate unit. RATE-ONLY by
-    Agrita's decision (2026-08-11) -- the old minority_frac<0.10 half was
-    dropped because frac is contaminated by the OTHER component's activity,
-    and the cases it uniquely governed had 27-spike satellites. Pass None to
+    firing below `satellite_rate_hz` is not a candidate unit. RATE-ONLY: the
+    old minority_frac<0.10 half was dropped because frac is contaminated by
+    the OTHER component's activity, and the cases it uniquely governed had 27-spike satellites. Pass None to
     skip the filter, which is the conservative choice.
 
     KNOWN BLIND SPOT (`lopsided_no_lratio`). A satellite above
@@ -348,7 +341,7 @@ _WITHIN_NAMES = {'separated': 'overmerged', 'not_separated': 'not_overmerged',
 
 def separation_verdict(dip_pval, l_ratio, dip_thresh=DIP_PVAL_THRESH,
                        l_thresh=L_RATIO_THRESH):
-    """DO THESE TWO GROUPS SEPARATE?  The domain-neutral primitive (#25).
+    """DO THESE TWO GROUPS SEPARATE?  The domain-neutral primitive.
 
     Returns one of SEPARATION_STATES and says NOTHING about whether separating
     is good or bad, because that depends on what the two groups are:
@@ -431,7 +424,7 @@ def verdict(dip_pval, l_ratio, dip_thresh=DIP_PVAL_THRESH, l_thresh=L_RATIO_THRE
 
 # ── RECURSIVE variant: fixes the collinear blind spot ─────────────────────
 #
-# DIAGNOSIS (m260812_collinear_blindspot_figure.py). In every failing case the
+# DIAGNOSIS. In every failing case the
 # DIP FIRES (p=0) and the L-RATIO blocks the verdict -- both limits are L-ratio
 # limits, not dip limits. Mechanism: the L-ratio asks "does the other group's
 # mass fall inside my ellipsoid?", and a group holding MORE THAN ONE unit has an
@@ -465,7 +458,7 @@ def _atomize(X, depth, min_spikes, min_group_spikes, cov_type, dip_thresh,
     enforced later, where it belongs: leaves too small to support their own
     covariance simply do not participate in the final L-ratio comparisons.
     """
-    # RECORD WHY WE STOPPED (#47). `atomic` used to conflate two very different
+    # RECORD WHY WE STOPPED. `atomic` used to conflate two very different
     # states: the dip ran and found no structure (a real negative result), and
     # the group could not be split at all (no dip ever computed). Both returned
     # a single leaf and both were reported `resolved`, so 111 clusters asserted an
@@ -492,8 +485,8 @@ def _atomize(X, depth, min_spikes, min_group_spikes, cov_type, dip_thresh,
         # absence of evidence. It used to be discarded: with no leaf pair the
         # caller's dip_pval stayed NaN, so 4,587 `+large_atomic` clusters
         # printed "dip p = n/a" despite the dip having run and answered
-        # "no internal structure" (Agrita, 2026-08-13: "unless the spike count
-        # is less than 240 on main unit we should have a dip test result").
+        # "no internal structure". Unless the main unit is under 240 spikes, every
+        # cluster should carry a dip test result.
         if depth == 0 and info is not None:
             info['root_dip'] = (None if res['w'] is None
                                 or not np.isfinite(res['dip_pval'])
@@ -537,7 +530,7 @@ RESOLVED_BASES = ('full', 'recursive', 'large_atomic', 'large_tested',
                   'lopsided_no_lratio+large_atomic', 'lopsided_no_lratio+large_tested',
                   'degenerate_split+large_atomic', 'degenerate_split+large_tested')
 
-# `unsplittable` (#47): a single leaf produced WITHOUT a dip -- the group
+# `unsplittable`: a single leaf produced WITHOUT a dip -- the group
 # could not be split at all, so there is no negative result, only absence.
 UNRESOLVED_SUFFIXES = ('remainder_too_small', 'unadjudicable',
                       'unsplittable')
@@ -577,11 +570,9 @@ def overmerge_cleared(v, duration_s=None, max_satellite_hz=0.1):
     group is an unanswered question, not evidence of a single unit. Acting on
     those 9 would convert Fail -> Pass on clusters that may well hold a second
     unit in the parked group. Only 2 of the 11 are defensible.
-    See m260812_burst_gate_test_swap.py.
 
     duration_s is required to judge negligibility as a RATE (the adopted
-    criterion, Agrita 2026-08-11: rate only, the spike-fraction criterion was
-    dropped). Without it this cannot clear a verdict that parked anything --
+    criterion: rate only, the spike-fraction criterion was dropped). Without it this cannot clear a verdict that parked anything --
     it returns False rather than guessing.
     """
     if v is None or v.get('verdict') != 'not_overmerged':
@@ -606,8 +597,8 @@ def overmerge_verdict(feats, min_spikes=MIN_SPIKES, min_group_spikes=None,
     Root cause it addresses: **the L-ratio is structurally a TWO-group
     statistic.** It fits ONE Gaussian to group A and asks how much of B falls
     inside that ellipsoid, so a group holding two units is silently mis-modelled
-    as one wide blob and the ellipsoid engulfs its neighbour. mind_snag never
-    hits this because it compares against each KS4 neighbour SEPARATELY -- its
+    as one wide blob and the ellipsoid engulfs its neighbour. The screen layer
+    never hits this because it compares against each KS4 neighbour SEPARATELY -- its
     groups are exogenous and presumed atomic. Ours are fitted, so pooling is
     possible, and the fix is to never compare a compound group.
 
@@ -615,7 +606,7 @@ def overmerge_verdict(feats, min_spikes=MIN_SPIKES, min_group_spikes=None,
     4/6/8 sigma; false positives on MEArec ground-truth single units stay flat
     (2.15% -> 2.19%).
 
-    PARKED SMALL GROUPS ARE NOT A VERDICT (fixed 2026-08-12, Agrita).
+    PARKED SMALL GROUPS ARE NOT A VERDICT.
     The first split can leave a group that cannot be adjudicated -- collapsed
     (<4 spikes), a sub-0.1 Hz fragment, or under the L-ratio's 120-spike floor.
     An earlier version returned `not_overmerged` for all of those, which meant
@@ -652,7 +643,7 @@ def overmerge_verdict(feats, min_spikes=MIN_SPIKES, min_group_spikes=None,
             # test COULD NOT EXAMINE look adjudicated. Measured consequence:
             # every ground-truth draw at n<=200 landed here, so the apparent
             # 0.00% false-positive rate at small n was the test never firing,
-            # not the test succeeding (m260812_lowspike_reliability.py).
+            # not the test succeeding.
             return {**first, 'basis': first['basis'] + '+remainder_too_small',
                     'n_leaves': 1, 'leaf_sizes': [int(big.shape[0])],
                     'parked': int(small.shape[0]),
@@ -689,7 +680,7 @@ def overmerge_verdict(feats, min_spikes=MIN_SPIKES, min_group_spikes=None,
         dp_atomic = out.get('dip_pval')
         if dp_atomic is None or not np.isfinite(dp_atomic):
             # atomic -> the dip that established atomicity; not atomic ->
-            # the dip that established there IS structure (#47). Previously
+            # the dip that established there IS structure. Previously
             # only the first was recovered.
             dp_atomic = (atom_info.get('root_dip', dp_atomic) if atomic
                          else atom_info.get('split_dip', dp_atomic))

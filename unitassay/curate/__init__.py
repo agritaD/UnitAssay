@@ -1,7 +1,6 @@
 """unitassay.curate — decide, then name what is wrong.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 
     >>> from unitassay import curate
     >>> rows = curate.curate_session(ks4_dir, isolation_dir='isolation')
@@ -18,7 +17,6 @@ row reports EVERY finding it carries rather than the first rule to fire. 36% of
 clusters carry more than one.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 from .curation import curate_session, cluster_inputs      # noqa: F401

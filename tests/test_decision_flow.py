@@ -16,7 +16,6 @@ only that it is what this code does. Accuracy is measured against the synthetic
 corpus, not asserted in a unit test.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 import pytest

@@ -3,7 +3,6 @@
 Ports psth.m. Computes firing rate from trial-aligned spike times.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 

@@ -4,7 +4,6 @@ Auto-detects format and uses scipy.io.loadmat for v7,
 h5py for v7.3 (HDF5-based).
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 

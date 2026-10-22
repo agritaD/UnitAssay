@@ -3,7 +3,6 @@
 Ports pipeline_KS4.m. Uses a Stage enum set for selective stage execution.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 
@@ -74,7 +73,7 @@ class Pipeline:
             active_stages = {Stage(s) if isinstance(s, str) else s for s in stages}
 
         logger.info("")
-        logger.info("=== mind_snag Pipeline KS4 ===")
+        logger.info("=== screen layer: KS4 ===")
         logger.info("KS dir: %s", ks_dir)
         logger.info("Output dir: %s", output_dir)
         logger.info("Stages: %s", " -> ".join(

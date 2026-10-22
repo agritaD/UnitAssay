@@ -1,9 +1,8 @@
 """Configuration dataclasses and YAML serialization.
 
-Ports mind_snag_config.m to Python nested dataclasses with YAML support.
+Python nested dataclasses with YAML support.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 
@@ -43,7 +42,7 @@ class IsolationConfig:
     """Parameters for isolation scoring."""
 
     window_sec: int = 100
-    # EXPERIMENTAL (dev copy only): max cosine similarity, in [0, 1], allowed
+    # Max cosine similarity, in [0, 1], allowed
     # between a candidate noise channel's waveform and the unit's own peak-
     # channel waveform before it's excluded as decay bleed-through rather
     # than independent noise. See clus_channel_info() in utils/channel_info.py.
@@ -52,7 +51,7 @@ class IsolationConfig:
 
 @dataclass
 class IsolateConfig:
-    """Central configuration for the mind_snag pipeline.
+    """Central configuration for the screen layer.
 
     All pipeline functions take this config as their first argument,
     replacing the old MATLAB global variables.

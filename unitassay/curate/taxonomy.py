@@ -2,8 +2,8 @@
 """curate/taxonomy.py
 
 Presentation-layer taxonomy for curate()'s output: collapses the rule-table
-tag vocabulary (curate/decision_flow.py) into a flat category scheme agreed
-with Agrita 2026-08-07, extended with a fourth outcome 2026-08-25.
+tag vocabulary (curate/decision_flow.py) into a flat category scheme with four
+outcomes.
 
     Pass  |  Fail  |  Low-spike-count  |  Redundant
 
@@ -14,8 +14,8 @@ carries two INDEPENDENT annotations (`locus`, `mechanism`) and there are three
 orthogonal overlay flags (`burst_rescued`, `needs_inspection`,
 `high_drift`).
 
-WHY ANNOTATIONS AND NOT NESTING (option 3, Agrita 2026-08-07)
---------------------------------------------------------------
+WHY ANNOTATIONS AND NOT NESTING
+-------------------------------
 Two descriptions of a failure were both wanted, and they cut across each
 other rather than nesting:
 
@@ -29,9 +29,7 @@ Neither is a subset of the other, so making either one the nesting level
 would split the other apart. Instead there is ONE row per sub-type and both
 axes ride along as columns. The sub-type column is the one that sums.
 
-`locus` follows Agrita's 2026-07-24 reorg rule, which is also how the figure
-directories are already laid out (m260723_catgt_devcopy_category_examples.py
-:43-51):
+`locus` follows this rule:
   within   -- the LDL feature-space test on the cluster's own spikes.
               INCLUDES noise contamination: the noise-channel L-ratio
               compares against THIS cluster's own reference channel, not a
@@ -69,8 +67,8 @@ Burst-rescue fires at rule 0, UPSTREAM of the rules that issue a PASS
 (2/3/5), so a cluster can need both: 248 of the 492 burst-rescued PASS
 clusters were ALSO shape_preserving_decay, before rule 3 was retired. As sibling
 rows they would have double-counted and the Pass column would not have summed. `is_burst` in the records IS
-already exactly the rescue flag -- compute_passes_isi_independent()
-(m260723_catgt_devcopy_retrieval_gate.py) sets it only inside the
+already exactly the rescue flag -- compute_passes_isi_independent() sets it
+only inside the
 `if not passes_isi:` branch, and only when the burst gate flips the verdict.
 
 WHY THE TOP-LEVEL LABEL IS 'Fail' AND NOT 'Confirmed Fail'
@@ -80,18 +78,17 @@ Clusters in it carry needs_inspection=True (pending/unexplained rows), so
 symmetric.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 
 PASS = 'Pass'
 FAIL = 'Fail'
 LOW_SPIKE = 'Low-spike-count'
-# FOURTH TOP-LEVEL OUTCOME (Agrita, 2026-08-24). A re-detection is not a BAD
+# FOURTH TOP-LEVEL OUTCOME. A re-detection is not a BAD
 # cluster -- its spikes are real and correctly sorted, they are simply already
 # counted under another cluster. Filing it as Fail would put it in the same
 # bucket as contaminated and over-merged units, which is a category error: the
-# user's question "is this junk?" and "is this a copy of #47?" have different
+# user's question "is this junk?" and "is this a copy of cluster 47?" have different
 # answers and different remedies (discard vs de-duplicate). Keeping it separate
 # also keeps the denominators honest, since a redundant cluster should not count
 # against specificity the way genuine noise does.
@@ -99,15 +96,14 @@ REDUNDANT = 'Redundant'
 CATEGORIES = (PASS, FAIL, LOW_SPIKE, REDUNDANT)
 
 # Whole-recording spike count below which a cluster is not judged at all.
-# ABSOLUTE (Agrita, 2026-08-07): no rule overrides it, not even a rule that
+# ABSOLUTE: no rule overrides it, not even a rule that
 # fired on real evidence. The sub-threshold isi_vr_fail clusters therefore
 # move to Low-spike-count too -- accepted deliberately, because "units below
 # the floor are not judged" is one sentence in a methods section and the
 # carve-out needed a paragraph to justify 0.4% of the population.
 #
 # 240 IS DERIVED, NOT HAND-SET (2026-08-12). This replaced 200 once the dip
-# test was run on ALL 18,974 clusters with no exclusion
-# (m260812_full_population_dip.py):
+# test was run on ALL 18,974 clusters with no exclusion:
 #
 #   The overmerge test compares TWO groups, and its L-ratio step inverts each
 #   group's OWN covariance. A group therefore needs min_group_spikes to exist
@@ -138,7 +134,7 @@ CATEGORIES = (PASS, FAIL, LOW_SPIKE, REDUNDANT)
 #
 # NOW validated against ground truth, which the old note said was impossible.
 # The sim_hybrid set indeed has no low-count units, but MEArec clean units
-# can be SUBSAMPLED to any size (m260812_lowspike_reliability.py): false
+# can be SUBSAMPLED to any size: false
 # positives are 0.00% from n=240 to n=1000. The surprise is at the OTHER end
 # -- FP rises to 4.87% (1500) and 5.26% (2000-4000), because the dip's power
 # grows with n until it resolves a single unit's drift tails and burst
@@ -159,9 +155,9 @@ assert LOW_SPIKE_THRESHOLD == 2 * MIN_GROUP_SPIKES, (
     'needing enough spikes to invert its own covariance). If you intend to '
     'change the floor, change MIN_GROUP_SPIKES in curate/constants.py.')
 
-# dip_lratio_between's own thresholds -- MUST stay in sync with
-# m260729_between_cluster_real_check.py:62, which is what produced the
-# dip_pval/l_ratio values this module re-reads.
+# dip_lratio_between's own thresholds -- MUST stay in sync with the
+# between-cluster check that produced the dip_pval/l_ratio values this module
+# re-reads.
 DIP_THRESH, L_THRESH = 0.05, 0.05
 
 # --- annotation vocabularies -------------------------------------------
@@ -186,8 +182,7 @@ DIP_THRESH, L_THRESH = 0.05, 0.05
 # decision-flow figure -- it gets its own locus naming the composition:
 #     overlap  cross-temporal -> redundancy
 LOCI = ('within', 'temporal', 'between', 'cross-temporal', 'all', 'open', 'n/a')
-# A MECHANISM NAMES A TEST, NEVER AN ERROR CLASS (Agrita, 2026-09-03: "make it
-# mechanism only"). Four of these used to name the error the test was believed
+# A MECHANISM NAMES A TEST, NEVER AN ERROR CLASS. Four of these used to name the error the test was believed
 # to prove -- 'overmerge', 'oversplit', 'drift', 'redundancy' -- which is the
 # same overclaim the sub-type names carried, one field down. Measured, the worst
 # was `overmerge`: the sub-type asserts OVER-MERGE and ground truth agrees 19.2%
@@ -223,7 +218,7 @@ ANNOTATION = {
     # because the cluster is ONE cell: its own refractory period rules out two.
     'drift': ('cross-temporal', 'time_ordering'),
     'isi_vr': ('temporal', 'refractory'),
-    # RENAMED from `noise_contamination` 2026-08-31 (#42, Agrita). The old name
+    # Formerly `noise_contamination`. The old name
     # asserted a SOURCE -- noise -- that this test never establishes. What the
     # test actually does is compare the unit against a reference channel drawn
     # from its OWN 10-channel group, so it can show that foreign events are
@@ -231,30 +226,27 @@ ANNOTATION = {
     # intruders are in fact other NEURONS (median frac_other 0.081-0.096 vs
     # frac_noise 0.007-0.013), so `noise` was not merely unestablished, it was
     # wrong. The new name states the algorithm's own scope, which is what the
-    # locus axis below has said since 2026-07-24.
+    # locus axis below says.
     'within_cluster_contamination': ('within', 'contamination'),
     'coincident_pair': ('cross-temporal', 'coincidence'),
     'neighbor_boundary': ('between', 'contamination'),
     'neighbor_indistinguishable': ('between', 'contamination'),
     # unattributed / deferred, both sides
     'untested_deferred': ('within', 'unresolved'),
-    # RENAMED from `ambiguous_deferred` 2026-08-21 (#33). "Deferred" described a
-    # process state -- waiting for MEArec P2 graded contamination -- and that
-    # wait is over, so the old name asserted a pending decision that no longer
-    # exists. The new name says what the EVIDENCE is: the dip fired and the
+    # Formerly `ambiguous_deferred`. "Deferred" described a process state that
+    # no longer exists. The new name says what the EVIDENCE is: the dip fired and the
     # within-cluster L-ratio did not support it.
     #
     # WHAT THE POPULATION TURNED OUT TO BE. Two ground-truth measurements:
     #   P(this verdict | genuinely CLEAN unit) RISES with n -- 6.7% at n=1000,
-    #     7.5% at 2000, 8.2% at 4000 (m260821_dip_null_below_floor.py --large,
-    #     400+ clean units). Applied size-by-size to the real 50-session set that
+    #     7.5% at 2000, 8.2% at 4000 (400+ clean units). Applied size-by-size to the real 50-session set that
     #     predicts 1,381 such clusters if EVERY cluster were a clean single unit;
     #     1,141 are observed. The population is fully accounted for by clean
     #     units, with none left over to attribute to contamination.
     #   Contamination ANNOUNCES ITSELF AS `overmerged` INSTEAD: against
     #     ground-truth fpos, overmerged runs 54% (fpos 0.10-0.20), 86%
     #     (0.20-0.35), 80% (0.35-0.50), while this verdict is 16.7% then 0% then
-    #     0% (m260821_ambiguous_vs_groundtruth.py). Likelihood ratio 1.58, i.e.
+    #     0%. Likelihood ratio 1.58, i.e.
     #     weak evidence for contamination.
     # mechanism stays 'unresolved': the dip firing alone does not attribute a
     # mechanism, and 12-15% of clean units at these sizes do it.
@@ -294,7 +286,8 @@ _MAP = {
     # --- Fail -------------------------------------------------------------
     # confirmed_fail and ldl_bimodal_ms_passed are ONE sub-type: both are
     # rule 1, real bimodal structure. The distinction that matters for the
-    # paper (mind_snag already agreed vs mind_snag was overruled by the LDL)
+    # paper (the screen layer already agreed vs the screen layer was overruled
+    # by the LDL)
     # is preserved in the tag itself, which classify() passes through.
     #
     # `ldl_bimodal_ms_passed` was `missed_overmerge_corrected` until
@@ -314,9 +307,8 @@ _MAP = {
     # unimodal), but it cannot tell two NEURONS from one neuron in two waveform
     # states. Changing the mechanism moves 161 synthetic clusters out of the
     # Overmerge category, and it entangles with the settled policy of tagging
-    # drift units as over-merge, so it is deferred to #53 (hybrid ground truth)
-    # to be revisited once rather than twice. See paper_limitations_draft.md
-    # §11 and m260828_rule1_override.py.
+    # drift units as over-merge, so it is deferred to hybrid ground truth, to
+    # be revisited once rather than twice.
     ('confirmed_fail', 'FAIL'): (FAIL, 'ldl_bimodal'),
     ('ldl_bimodal_ms_passed', 'FAIL'): (FAIL, 'ldl_bimodal'),
     ('missed_overmerge_corrected', 'FAIL'): (FAIL, 'ldl_bimodal'),  # pre-2026-08-30
@@ -360,9 +352,8 @@ _MAP = {
     ('pending_isi_check_other', 'FAIL'): (FAIL, 'pending_isi_check'),
 }
 
-# Tags emitted by curate() BEFORE the 2026-08-31 rename (#42). Kept so that
-# results already on disk -- curate_147.json most importantly, 53,428 rows from
-# an 18.4-minute run -- still classify without being regenerated. They map to
+# Tags emitted by curate() BEFORE the within-cluster rename. Kept so that
+# results already on disk still classify without being regenerated. They map to
 # the SAME sub-types, so nothing about the taxonomy is duplicated; only the
 # spelling of the input differs. Delete once no stored run predates the rename.
 LEGACY_TAGS = {
@@ -378,12 +369,12 @@ for _old, _new in LEGACY_TAGS.items():
 # `sub_type == 'noise_contamination'` would match nothing and quietly report
 # zero rather than fail, which is exactly how a rename becomes a wrong number.
 # old name -> (new name, why). The REASON is per entry: one shared sentence
-# described the #42 rename and would have been printed, wrongly, for every
+# described the first rename and would have been printed, wrongly, for every
 # later one.
 LEGACY_SUB_TYPES = {
     'noise_contamination': (
         'within_cluster_contamination',
-        'renamed 2026-08-31 (#42): the old name asserted a SOURCE the test does '
+        'renamed: the old name asserted a SOURCE the test does '
         'not establish. The within-cluster test never looks at another cluster, '
         'so it cannot tell noise from a neighbour.'),
     'overmerge': (
@@ -487,10 +478,9 @@ LABELS = {
 def enrich_drift(records, drift_records):
     """Attach per-cluster drift onto records, mirroring enrich_between().
 
-    Source: data/results/real_drift_vs_overmerge.json, produced by
-    m260812_real_drift_vs_overmerge.py from spike_positions.npy. Kept as a merge
-    rather than written into the shared decision JSON, which the CatGT thread
-    reads.
+    Source: per-cluster drift computed from spike_positions.npy. Kept as a
+    merge rather than written into the shared decision JSON, which other
+    readers depend on.
 
     Carries the CONTINUOUS drift_ratio, not just the flag: the overmerge risk
     rises smoothly with it (1.6x at 0.5 through 3.2x at 2.0) with no elbow, so a
@@ -515,8 +505,8 @@ def enrich_between(records, check_records):
     (between_cluster_confirmed_separated: True/False/None), which cannot
     distinguish the two DIFFERENT situations that both produce None. The raw
     two metrics live in data/results/between_cluster_real_check.json. This
-    merges them in rather than mutating that shared file on disk -- the
-    CatGT thread reads the same JSONs.
+    merges them in rather than mutating that shared file on disk -- other
+    readers depend on the same JSONs.
 
     Mutates and returns `records`.
     """
@@ -578,8 +568,8 @@ def _neighbor_sub_type(r):
     raise ValueError(
         f'_neighbor_sub_type: dip_pval={dp} l_ratio={lr} is an AGREEING '
         f'corner, so curate() should not have tagged this cluster pending. '
-        f'Check that DIP_THRESH/L_THRESH here still match '
-        f'm260729_between_cluster_real_check.py.')
+        f'Check that DIP_THRESH/L_THRESH here still match the '
+        f'between-cluster check that produced these values.')
 
 
 def classify(r):
@@ -631,7 +621,7 @@ def classify(r):
         category, sub_type = LOW_SPIKE, 'below_threshold'
     elif (tag == 'flagged_untested_ldl'
           and 'remainder_too_small' in str(r.get('dip_basis'))):
-        # THE 240 FLOOR ASSUMES AN EVEN SPLIT (Agrita, 2026-08-26).
+        # THE 240 FLOOR ASSUMES AN EVEN SPLIT.
         # LOW_SPIKE_THRESHOLD = 2 * MIN_GROUP_SPIKES is exactly right for a 50/50
         # split, because each group then clears 120. Real splits are lopsided, and
         # the L-ratio needs the SMALL side to clear 120 -- so an 80/20 split needs
@@ -641,9 +631,9 @@ def classify(r):
         # Measured on the 50 sessions: 31.2% of the 240-400 band was
         # LDL-unadjudicable, 67% of those for `remainder_too_small`, and 89% of
         # rule 8's judged clusters sat under 600 spikes. Those 506 clusters were
-        # getting a PASS/FAIL from mind_snag alone with no within-cluster evidence
-        # -- the untested-default failure this floor exists to prevent, surviving
-        # in the one case the derivation did not cover.
+        # getting a PASS/FAIL from the screen layer alone with no within-cluster
+        # evidence -- the untested-default failure this floor exists to prevent,
+        # surviving in the one case the derivation did not cover.
         #
         # THE FIX USES THE RECORDED REASON, NOT A NEW THRESHOLD. `remainder_too_small`
         # already means "a group fell below MIN_GROUP_SPIKES", which IS a
@@ -655,7 +645,7 @@ def classify(r):
         # cluster would be misfiled here, but it never occurs -- a big cluster's
         # split leaves 120 on both sides by construction.
         #
-        # 240 REMAINS ABSOLUTE AND UNCHANGED (Agrita's 2026-08-07 call). This is a
+        # 240 REMAINS ABSOLUTE AND UNCHANGED (decided 2026-08-07). This is a
         # SECOND, narrower condition beside it, not a replacement. The other 209
         # unadjudicable clusters (full/large_unadjudicable, median 468, max 5,409)
         # stay judged -- their failure is not about spike count and must not
@@ -691,7 +681,7 @@ def classify(r):
             sub_type = _neighbor_sub_type(r)
         # `unexplained` was never a mystery -- it was a MEASUREMENT WE HAD NOT
         # MADE. These clusters fail because the unit is ABSENT from most drift
-        # frames: mind_snag counts a frame with no spikes against the clean
+        # frames: the screen layer counts a frame with no spikes against the clean
         # fraction ("unit had no spikes = drifted away = not isolated"), so a
         # cluster absent from >40% cannot reach 0.6 however clean its present
         # frames are, while classify_dominant_source SKIPS absent frames and so
@@ -742,9 +732,6 @@ def classify(r):
 def curate_and_classify(records):
     """Run curate(), then taxonomy, on every record. THE ONLY WAY TO RUN curate().
 
-    Agrita, 2026-09-02: "we should make a rule to always run taxonomy after
-    curate."
-
     WHY IT IS A RULE AND NOT A CONVENTION. curate() decides; taxonomy DESCRIBES.
     A run that stores only curate()'s output looks complete -- every cluster has
     a decision, a rule and a tag -- while the description layer has never been
@@ -792,8 +779,8 @@ def curate_and_classify(records):
     return records
 
 
-# THREE DECISIONS, NOTHING ELSE (Agrita, 2026-10-01): "I don't want anything to
-# be ambiguous or untested etc -- we have pass, fail and low-spike count."
+# THREE DECISIONS, NOTHING ELSE: every cluster gets PASS, FAIL or
+# LOW_SPIKE_COUNT; nothing is left ambiguous or untested.
 # `decision` itself carries the three values (option (a)): ONE field for the
 # result, so there is one pass number. The rule engine's own binary call is
 # still recoverable from `rule` / `rule_id`.
@@ -848,15 +835,14 @@ def classify_all(records):
 #
 # THIS FUNCTION EXISTS BECAUSE THE SAME BUG KEEPS COMING BACK. Figure after
 # figure has re-derived "did L-ratio fail?" inline, and each time it has
-# ended up asserting an L-ratio failure for clusters where mind_snag's
-# L-ratio bars are entirely BELOW threshold -- clusters mind_snag failed on
-# ISI-VR instead. Agrita has caught this more than once. Do not inline this
-# logic again; call lratio_state().
+# ended up asserting an L-ratio failure for clusters where the screen layer's
+# L-ratio bars are entirely BELOW threshold -- clusters the screen layer failed
+# on ISI-VR instead. Do not inline this logic again; call lratio_state().
 #
 # The trap: `dominant_source` is NOT "which L-ratio comparison failed" for
-# every cluster. m260723_catgt_devcopy_stable_fail_audit.py:351 computes it
-# ONLY for `(not screen_pass) and ldl_verdict in CLEAN_VERDICTS`. For every other
-# record it is absent -- 4,107 judged clusters as of 2026-08-07 (2,646
+# every cluster. The attribution audit computes it ONLY for
+# `(not screen_pass) and ldl_verdict in CLEAN_VERDICTS`. For every other record
+# it is absent -- 4,107 judged clusters as of 2026-08-07 (2,646
 # overmerge, 761 isi_vr, 384 untested, 223 unexplained, 93 ambiguous).
 # Absent does NOT mean "L-ratio failed and we don't know the source"; it
 # means NOT EVALUATED. Treating None/'unclassified' as a failure is the bug.
@@ -904,7 +890,7 @@ def check_pass_has_affirmative_channel(rows):
     the ISI-VR violations were burst-forgiven -- three explanations and no
     evidence.
 
-    That is not hypothetical. The #17 fall-through dry run would have introduced
+    That is not hypothetical. A fall-through dry run would have introduced
     exactly 13 such passes, all small clusters (240-864 spikes, 12 of 13 under
     400) carrying violation rates up to 105/s. Requiring one affirmative channel
     blocks precisely those 13 and keeps the other 145 rescues.
@@ -932,14 +918,14 @@ def check_pass_has_affirmative_channel(rows):
 def lratio_state(r):
     """Return one of LRATIO_STATES for a record. Never guesses.
 
-    'pass'          mind_snag's combined criterion passed, so L-ratio passed
+    'pass'          the screen layer's combined criterion passed, so L-ratio passed
                     (screen_pass = passes_lratio AND passes_isi).
     'noise_fail'    noise-channel comparison dominates the failure.
     'neighbor_fail' a different cluster dominates the failure.
     'mixed_fail'    both crossed threshold, neither dominates.
     'not_evaluated' dominant_source was never computed for this cluster, or
                     the audit could not load its SortData. Say NOTHING about
-                    L-ratio for these -- mind_snag may well have failed them
+                    L-ratio for these -- the screen layer may well have failed them
                     on ISI-VR alone.
     """
     if r['screen_pass']:
@@ -952,7 +938,7 @@ def lratio_state(r):
     if dom == 'mixed':
         return 'mixed_fail'
     if dom in ('none', 'lratio_passed'):
-        # Nothing crossed threshold: L-ratio PASSED, so mind_snag failed this
+        # Nothing crossed threshold: L-ratio PASSED, so the screen layer failed this
         # cluster on the OTHER criterion (ISI-VR).
         #
         # 'none' was the value classify_dominant_source() returns; 'lratio_passed'
@@ -960,7 +946,7 @@ def lratio_state(r):
         # collapsed 'none' into 'unclassified', so this branch was dead code and
         # these clusters were reported as not_evaluated — i.e. "we don't know"
         # instead of "L-ratio explicitly passed every frame". 967+ clusters were
-        # affected. See m260812_recompute_dominant_source.py.
+        # affected.
         return 'pass'
     # 'unclassified' (legacy) and 'not_computable' both mean the attribution
     # could not be computed. Say nothing about L-ratio for these.

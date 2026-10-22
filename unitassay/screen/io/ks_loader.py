@@ -4,7 +4,6 @@ Ports loadKSdir.m. Uses np.load() instead of readNPY (one line replaces
 readNPY.m + readNPYheader.m).
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 

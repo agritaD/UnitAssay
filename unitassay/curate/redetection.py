@@ -5,7 +5,7 @@ THE RE-DETECTION TEST: is this cluster a second copy of spikes another cluster
 already holds?
 
 WHY THIS IS A SEPARATE CHANNEL. The tool's other three tests -- LDL (within),
-ISI-VR (temporal), mind_snag's L-ratio (between) -- all ask about a cluster's
+ISI-VR (temporal), the screen's L-ratio (between) -- all ask about a cluster's
 FEATURES, or about its own spike train. None of them compares WHEN two clusters
 fire. So none of them can see the case where two clusters hold the same physical
 events, and on MEArec ground truth that case is 79% of everything we label
@@ -49,7 +49,6 @@ DEPENDS ON CatGT. CAR collapses this null's tail (session 90th percentile 41.7%
 99/95/91/59% and the test is inert.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 import numpy as np
@@ -68,7 +67,7 @@ MIN_SPIKES = 30          # below this no overlap statistic is computed at all
 # well inside the +-0.5 ms coincidence window. See is_redetection_pair.
 LAG_MIN_MS = 0.2
 
-# THE OVERLAP FLOOR IS A DEFINITION, NOT A CALIBRATION OUTPUT (Agrita, 2026-08-25).
+# THE OVERLAP FLOOR IS A DEFINITION, NOT A CALIBRATION OUTPUT.
 # "Redundant" asserts that a substantial share of this cluster's spikes are already
 # counted under another cluster. A calibrated quantile does not enforce that
 # sentence: once the lag conjunction was applied the null's 98th percentile fell to
@@ -77,18 +76,18 @@ LAG_MIN_MS = 0.2
 #
 # So the floor is set by what the word means and the null REPORTS the resulting
 # false-positive rate instead of choosing it. Swept over 5/10/20/30/50/70% on both
-# corpora (m260825_redetection_floor_sweep.py), 20% is the best point on every
+# corpora, 20% is the best point on every
 # real-data instrument at once:
 #
-# RAISED 20% -> 50% (Agrita, 2026-08-26), because 20% did not satisfy the
+# RAISED 20% -> 50%, because 20% did not satisfy the
 # sentence the category name asserts. A cluster 20% of whose spikes are shared is
 # 80% NEW, and calling it "Redundant" overclaims in exactly the way a 5% floor
 # would have. At >50% the majority of the cluster is already counted, which is the
 # plain reading of the word and one defensible line in a methods section.
 #
 # 50% ALSO DOMINATES 70% on every composite measure, so this is not a compromise
-# between the name and the numbers (m260826_floor_tradeoff.py, and note the two
-# columns answer different questions -- see the module note on units of analysis):
+# between the name and the numbers (note the two columns answer different
+# questions -- see the module note on units of analysis):
 #
 #   floor  cluster acc  cluster F1  unique lost  dups left in  spike F1
 #     20%       85.3%       68.5%    1,136,322       112,648     79.9%

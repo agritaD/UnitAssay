@@ -1,7 +1,6 @@
 """I/O for Kilosort output, .mat files, and HDF5.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 

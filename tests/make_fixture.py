@@ -24,7 +24,6 @@ Regenerate with:  python tests/make_fixture.py
 The output is committed; regenerating must not change it unless intended.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 import sys
@@ -111,7 +110,7 @@ def main():
     np.save(OUT / 'whitening_mat_inv.npy', np.eye(N_CH))
     # KSLabel is the sorter's own verdict, which the tool overrides but reads:
     # cluster 2 is the refractory violator, so KS calls it mua. Giving every
-    # cluster the same label would make the mind_snag-vs-curate contrast
+    # cluster the same label would make the screen-vs-curate contrast
     # vacuous on this fixture.
     (OUT / 'cluster_KSLabel.tsv').write_text(
         'cluster_id\tKSLabel\n'

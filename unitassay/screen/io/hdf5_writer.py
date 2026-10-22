@@ -10,7 +10,6 @@ Schema for NPclu.h5 (matches MATLAB NPclu.mat format):
   attrs: ks_version, creation_date
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 

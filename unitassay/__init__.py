@@ -42,7 +42,7 @@ def code_commit(repo=None, package='unitassay'):
     repository, so editing a figure script in paper/ during a run stamped 141
     of 147 sessions '+dirty' although not one package file had changed. A
     stamp must describe the code that ran, and paper/, tests/ and docs are not
-    that code. Agrita: "there should not be dirty or ambiguous tag".
+    that code, and a stamp must never be dirty or ambiguous.
     """
     import subprocess
     from pathlib import Path

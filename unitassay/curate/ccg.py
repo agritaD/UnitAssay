@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """curate/ccg.py
 
-Cross-correlogram, factored out of m260708_neighbor_fail_examples.py (the
-oversplitting diagnostic: refractory dip at t=0 -> same neuron split in two;
+Cross-correlogram, factored out of the over-splitting diagnostic (a
+refractory dip at t=0 -> same neuron split in two;
 flat -> genuinely independent sources). Same use case applies to checking
 whether a dip-test's k-means(2) split is a real second neuron or an
 artificial split of one clean unit.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 

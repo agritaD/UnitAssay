@@ -5,7 +5,6 @@ marked as isolated (unit_iso == 1), extracts their spikes, and
 saves IsoClu_info back into the NPclu file.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 

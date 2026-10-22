@@ -10,18 +10,15 @@ WHY THIS EXISTS
 always had exactly one implementation. **Assembling that dict did not.** The
 sequence
 
-    load KS4 -> mind_snag SortData -> channel_fields -> overmerge_verdict
+    load KS4 -> screen-layer SortData -> channel_fields -> overmerge_verdict
              -> ISI-VR -> re-detection (two passes) -> curate -> classify
              -> findings/error_class
 
-was written out independently in `m260820_whole_tool_performance.py`,
-`m260820_ks4_vs_tool.py`, `mearec_synthetic/score_tag_mapping.py`,
-`mearec_synthetic/hybrid_compare_tools.py`, `mearec_synthetic/rule5_yield_check.py`
-and `m260828_rule1_three_arm.py`. Six copies of the pipeline feeding one copy of
-the rule.
+was once written out independently in six analysis scripts: six copies of the
+pipeline feeding one copy of the rule.
 
 That is not a tidiness complaint. It is where a real bug lived: every one of
-those copies paraphrased mind_snag's ISI-VR as
+those copies paraphrased the screen layer's ISI-VR as
 
     passes_isi = not (len(viol) >= 5) or burst_like
 
@@ -29,8 +26,8 @@ which keeps the small-n FLOOR and silently drops the Hill ratio behind it,
 turning a rate test into an absolute count. It wrongly failed 223 of 4,016
 synthetic clusters — none below 1,000 spikes, which is why it survived — and on
 Buccino's hybrid corpus (54k–85k spikes per unit) it failed 8 of 9 ground-truth
-units, making `curate()` look like an 11% -sensitivity tool. The MEArec terminal
-found it from the outside; neither of us could see it from inside the corpus.
+units, making `curate()` look like an 11% -sensitivity tool. It was found only
+by running on an outside corpus; it could not be seen from inside our own.
 
 **The rule was never wrong. The six pipelines were.** So the pipeline gets one
 implementation too, and callers get a function rather than a recipe.
@@ -52,18 +49,15 @@ Rule R needs `redundant_of`, which needs to know which clusters rule 1 claimed,
 which needs a `curate()` call. So curation runs TWICE: pass 1 without
 redundancy to establish rule 1, pass 2 with it. Rule 1 precedes rule R in the
 precedence, so this is well-founded rather than circular. Getting this wrong is
-how rule R sat silently inactive in every score the MEArec terminal published —
+how rule R once sat silently inactive in every published score —
 `redundant_of` was never populated, so a rule that could not fire was
 indistinguishable from a rule that fired and found nothing.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 import json
 from pathlib import Path
-
-import warnings
 
 import numpy as np
 
@@ -77,9 +71,9 @@ from unitassay.curate.bimodality import dip_lratio_between
 from unitassay.curate.ccg import accuser_stats
 from unitassay.curate.constants import DIP_PVAL_THRESH, L_RATIO_THRESH
 # The between-cluster LDL uses the SAME per-group floor as the within-cluster
-# one -- 120 spikes. m260729_between_cluster_real_check named it
-# MIN_GROUP_SPIKES_LDL locally; it is MIN_GROUP_SPIKES here, imported below with
-# the rest, so there is one value rather than two that can drift.
+# one -- 120 spikes. An earlier analysis named it MIN_GROUP_SPIKES_LDL
+# locally; it is MIN_GROUP_SPIKES here, imported with the rest, so there is one
+# value rather than two that can drift.
 from unitassay.curate.sortdata import (aligned_features, flagged_neighbours,
                             sortdata_path, channel_fields,
                             process_sortdata_all_frames)
@@ -104,12 +98,11 @@ def between_separated(dp, lr):
     True = separated, False = not separated, None = the test could not run
     (a statistic is missing or non-finite).
 
-    A CONFLICT IS DECIDED BY THE L-RATIO (Agrita, 2026-10-01). The within-cluster
-    test has given the L-ratio precedence since 2026-09-03 (_apply_rules remaps
-    `ambiguous`; against ground truth the L-ratio was right 256/273, the dip
-    17/273), but this between-cluster test was never brought in line: it returned
+    A CONFLICT IS DECIDED BY THE L-RATIO. The within-cluster test gives the
+    L-ratio precedence (_apply_rules remaps `ambiguous`; against ground truth
+    the L-ratio was right 256/273, the dip 17/273), but this between-cluster test was never brought in line: it returned
     None on a conflict, which rule 5 reads as "evidence incomplete" (5d).
-    Measured on the 147 (m261001_5d_diagnosis.py): 2,518 of the 3,403 5d clusters
+    Measured on the 147 real sessions: 2,518 of the 3,403 5d clusters
     were exactly this conflict -- 1,802 dip-only, 716 L-ratio-only. None is now
     reserved for a test that could not run.
 
@@ -148,8 +141,8 @@ def cluster_inputs(spike_times_ms, pc_feats, channel_fields_row, duration_sec):
     viol = isis[isis < REFRACTORY_MS]
     # Burst override: violations piled into the first half of the refractory
     # window look like an intrinsic burster rather than contamination. Timing
-    # alone cannot separate that from a real over-merge, which is why mind_snag
-    # gates it on an LDA bimodality test; that gate lives in auto_curate and is
+    # alone cannot separate that from a real over-merge, which is why the screen
+    # layer gates it on an LDA bimodality test; that gate lives in auto_curate and is
     # not reproduced here, so this is the timing half only.
     is_burst = bool(len(viol) and np.mean(viol < BURST_SUB_MS) >= BURST_FRAC)
     passes_isi = passes_isi_vr(t) or is_burst
@@ -162,7 +155,7 @@ def cluster_inputs(spike_times_ms, pc_feats, channel_fields_row, duration_sec):
     ch = channel_fields_row
 
     # The two rule-1 three-way inputs. Both are RAW and unthresholded on
-    # purpose: `passes_isi` above is the yes/no mind_snag derives from the same
+    # purpose: `passes_isi` above is the yes/no the screen layer derives from the same
     # spikes and discards, and the continuous values still discriminate among
     # clusters that all passed it.
     isi_rate = (n_viol / (n - 1)) if n > 1 else None
@@ -176,7 +169,7 @@ def cluster_inputs(spike_times_ms, pc_feats, channel_fields_row, duration_sec):
         noise_ch_flagged=ch.get('noise_ch_flagged'),
         neighbor_never_fails=ch['neighbor_never_fails'],
         # frame coverage -- what separates "absent" from "contaminated" when a
-        # cluster fails mind_snag with every attribution channel clean
+        # cluster fails the screen with every attribution channel clean
         absent_frame_frac=ch.get('absent_frame_frac'),
         clean_frac_when_present=ch.get('clean_frac_when_present'),
         between_cluster_confirmed_separated=None,
@@ -216,8 +209,7 @@ def _split_time_auc(proj, t_ms):
 
 
 def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
-                   duration_sec=None, with_redetection=True, verbose=False,
-                   mindsnag_subdir=None):
+                   duration_sec=None, with_redetection=True, verbose=False):
     """Curate one sorted session. Returns one dict per cluster.
 
     ks4_dir           KS4 output directory (spike_times/clusters, pc_features,
@@ -232,37 +224,18 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
     duration_sec      recording length. Defaults to the last spike time, which
                       is what the satellite-rate test needs — omitting it once
                       disabled that test entirely on real data.
-    mindsnag_subdir   DEPRECATED alias for isolation_dir, kept because callers
-                      outside this package still pass it.
 
-    THE DEFAULT CHANGED WITH THE NAME, from 'mindsnag' to 'isolation'. The
-    layer is called `screen` and its CLI writes to `isolation/`, so the old
-    default named a directory this package never creates. A caller relying on
-    the old default was depending on a lab layout, not on the tool.
+    The default is 'isolation', the directory the screen layer's CLI writes.
     """
-    if mindsnag_subdir is not None:
-        # NOT silently accepted: the two names would otherwise disagree about
-        # the default, and a caller passing the old one would get 'isolation'
-        # searched for while believing it had asked for something else.
-        warnings.warn('curate_session(mindsnag_subdir=) is deprecated; use '
-                      'isolation_dir=. The screen layer replaced mind_snag '
-                      'and the default is now "isolation".',
-                      DeprecationWarning, stacklevel=2)
-        isolation_dir = mindsnag_subdir
-    # clus_channel_info is mind_snag's, so it stays a deferred import -- the
-    # dev tree is not always on sys.path and only this function needs it.
-    # NO PIN NEEDED HERE. In the lab tree this import had to force a specific
-    # mind_snag onto sys.path, because three diverged copies existed and the one
-    # `import mind_snag` found had a different clus_channel_info signature and a
-    # different noise-reference rule. Inside this package there is exactly one
-    # copy -- unitassay.screen -- so the ambiguity that made the pin necessary
-    # does not exist.
+    # clus_channel_info belongs to the screen layer and only this function
+    # needs it, so it stays a deferred import. There is exactly one copy of it,
+    # in unitassay.screen.
     from unitassay.screen.utils.channel_info import clus_channel_info
 
     ks4 = Path(ks4_dir)
     # TWO LAYOUTS EXIST AND sortdata_path TAKES THE PARENT OF THE SortData DIR.
-    #   MEArec  recordings_X/{ks4_output, mindsnag_dev_w100}   -> ks4.parent
-    #   real    group_CatGT_KS4/{spike_times.npy, mindsnag/}   -> ks4 itself
+    #   beside   recording/{kilosort4/, isolation/}           -> ks4.parent
+    #   inside   kilosort4/{spike_times.npy, isolation/}      -> ks4 itself
     # Detected rather than assumed: hardcoding either one silently curates ZERO
     # clusters on the other, because every sortdata_path() misses and the loop
     # `continue`s. Raise if neither is present -- an empty result must not be
@@ -372,9 +345,8 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
 
     import h5py
 
-    # ---- rule 5's inputs, built HERE (task A11, 2026-09-04) -----------------
-    # These used to be computed only in analysis/m260902_full_synthetic_curate.py,
-    # so a bare curate_session() on a fresh session RAISED at rule 5's retrieval
+    # ---- rule 5's inputs, built HERE -----------------------------------------
+    # These used to be computed only in a separate analysis script, so a bare curate_session() on a fresh session RAISED at rule 5's retrieval
     # -- correctly, since a retrieval that passes because its check was absent is
     # an untested default, but it meant the toolbox could not curate a session on
     # its own. Everything below reads files curate_session already opened.
@@ -399,7 +371,7 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
     for clu, d in base.items():
         d.update(between_cluster_confirmed_separated=None,
                  between_all_neighbours_separated=None, ccg_accusers=[])
-        # only clusters mind_snag blames on a NEIGHBOUR reach rule 5's retrieval
+        # only clusters the screen blames on a NEIGHBOUR reach rule 5's retrieval
         if d.get('dominant_source') != 'other_cluster' or d.get('screen_pass'):
             continue
         f = sortdata_path(root, clu, isolation_dir)
@@ -423,7 +395,7 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
         d['between_cluster_confirmed_separated'] = _between(clu, dom)
         if d['between_cluster_confirmed_separated'] is not True:
             continue
-        # EVERY accuser, not the loudest (#14). Keying on the dominant neighbour
+        # EVERY accuser, not the loudest. Keying on the dominant neighbour
         # alone left 31% of this branch with accusers the gate never saw.
         acc = [nb['clu_id'] for nb in (fl or []) if nb['clu_id'] != clu] or [dom]
         seps = [_between(clu, x) for x in acc]
@@ -454,7 +426,7 @@ def curate_session(ks4_dir, isolation_dir='isolation', cluster_ids=None,
     # for itself. That is the gap that let `intermittent_presence` fire on 41
     # real clusters and 0 synthetic ones for eleven days: the decision layer
     # looked complete, and nothing ever asked the description layer whether it
-    # could name what happened. Agrita's rule, 2026-09-02.
+    # could name what happened. So taxonomy always runs after curate.
     curate_and_classify(rows)
 
     # findings/outcome are attached by curate_and_classify above -- all three

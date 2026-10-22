@@ -20,7 +20,6 @@ written, and nothing errored; a resume that trusts a filename would reintroduce
 exactly that.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 import json

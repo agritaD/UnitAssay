@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""curate/isi_vr.py — THE mind_snag ISI-VR criterion. One implementation.
+"""curate/isi_vr.py — THE screen layer's ISI-VR criterion. One implementation.
 
 WHY THIS FILE EXISTS
 --------------------
-mind_snag's ISI-VR criterion had been reimplemented independently in the
-measurement harness (`m260820_whole_tool_performance.py`), in
-`mearec_synthetic/score_tag_mapping.py`, and in the rule-1 three-arm harness —
-and the reimplementation was WRONG in a way that only shows up at large spike
-counts, so nothing on our corpora exposed it.
+The screen layer's ISI-VR criterion had been reimplemented independently in
+several measurement harnesses, and the reimplementation was WRONG in a way that
+only shows up at large spike counts, so nothing on our corpora exposed it.
 
-mind_snag's real rule (`auto_curate.py:239-307`) is TWO branches:
+The screen layer's real rule (`unitassay/screen/curation/auto_curate.py`) is
+TWO branches:
 
     num_viol < 5          -> pass. A small-n FLOOR: at low firing rates the Hill
                              denominator is tiny and a couple of stray
@@ -29,13 +28,13 @@ same direction, and the error is purely size-dependent — ZERO below 1,000
 spikes, 119 in 3,000-6,000, 101 above 6,000. The corpus median is 1,242 spikes,
 which is why it stayed invisible.
 
-**The MEArec terminal found it on Buccino's hybrid corpus** (reply 10 §1), where
-injected units carry 54,000-85,000 spikes: 5 violations out of 70,000 is 0.007%,
-so the count form failed 8 of 9 ground-truth units and `curate()` scored 11.1%
+**It surfaced on Buccino's hybrid corpus**, where injected units carry
+54,000-85,000 spikes: 5 violations out of 70,000 is 0.007%, so the count form
+failed 8 of 9 ground-truth units and `curate()` scored 11.1%
 sensitivity. Under the real rule their Hill ratios are 9.14e-04 to 0.186 — all
-far below 0.5 — so every one passes. Their diagnosis of the symptom was right
-and the proposed fix ("make it a rate, keep >=5 as the small-n floor") is
-exactly what mind_snag already does; the defect was ours, not the criterion's.
+far below 0.5 — so every one passes. The fix ("make it a rate, keep >=5 as the
+small-n floor") is exactly what the screen layer already does; the defect was in
+the reimplementations, not the criterion.
 
 The burst override is deliberately NOT included here. It needs the multichannel
 PC features and an LDA bimodality test, so it belongs with the caller that has
@@ -43,13 +42,12 @@ them; `is_burst` is threaded separately. Callers that had `or burst_like` keep
 it, unchanged.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 import numpy as np
 
-REFRACTORY_MS = 1.0     # mind_snag's REFRACTORY_PERIOD, in ms
-ISI_THRESH = 0.5        # mind_snag's isi_thresh on the Hill ratio
+REFRACTORY_MS = 1.0     # the screen layer's REFRACTORY_PERIOD, in ms
+ISI_THRESH = 0.5        # the screen layer's isi_thresh on the Hill ratio
 NUM_VIOL_GUARD = 5      # the small-n floor -- a FLOOR, never a threshold
 
 
@@ -82,7 +80,7 @@ def violation_stats(spike_times_ms, refractory_ms=REFRACTORY_MS):
 
 def passes_isi_vr(spike_times_ms, refractory_ms=REFRACTORY_MS,
                   thresh=ISI_THRESH, guard=NUM_VIOL_GUARD):
-    """mind_snag's criterion, WITHOUT the burst override (see module docstring).
+    """The screen layer's criterion, WITHOUT the burst override (see module docstring).
 
     True = the cluster's refractory violations are consistent with a single
     unit. The caller adds `or is_burst` if it has the burst evidence.

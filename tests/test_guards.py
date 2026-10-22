@@ -4,11 +4,9 @@ Every test here corresponds to a real incident or a real defect. A guard with no
 test is a comment: it survives only as long as nobody refactors past it.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 import json
-import warnings
 
 import pytest
 
@@ -38,19 +36,9 @@ def test_missing_isolation_raises_rather_than_curating_nothing(tmp_path):
         curate_session(ks, isolation_dir='nowhere')
 
 
-def test_deprecated_keyword_still_works_and_warns(tmp_path):
-    """Callers outside this package still pass `mindsnag_subdir`."""
-    ks = tmp_path / 'sorter'; ks.mkdir()
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter('always')
-        with pytest.raises(FileNotFoundError):
-            curate_session(ks, mindsnag_subdir='nowhere')
-    assert any(issubclass(x.category, DeprecationWarning) for x in w)
-
-
 # --------------------------------------------------------------------------
 # Rule 5 requires a time-domain statistic over EVERY accuser. Passing on the
-# loudest alone is the #14 scope error; passing with none is an untested default
+# loudest alone leaves every other accuser untested; passing with none is an untested default
 # returning a PASS, and the feature-space evidence behind the retrieval is
 # measured at chance (AUC 0.50), so it rests on nothing.
 # --------------------------------------------------------------------------

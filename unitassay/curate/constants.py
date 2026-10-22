@@ -14,7 +14,6 @@ was not real: changing one script's floor would silently leave 240 wrong. The
 derivation is now expressed in code instead of in a comment.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 
@@ -25,8 +24,8 @@ Part of unitassay. Licence: MIT.
 #
 # HONEST STATUS: 120 is HAND-SET. The n~40 degeneracy is a real property of the
 # statistic, but nothing calibrates why 3x rather than 2x or 4x. So everything
-# derived from it is derived RELATIVE to a hand-set number -- Phase 5 (#9) owns
-# justifying this one against a calibrated null. Do not describe quantities
+# derived from it is derived RELATIVE to a hand-set number -- justifying this one
+# against a calibrated null is still open. Do not describe quantities
 # below as "derived from first principles"; they are derived from THIS.
 MIN_GROUP_SPIKES = 120
 
@@ -40,8 +39,8 @@ MIN_GROUP_SPIKES = 120
 #      0.0%     0.0%     0.0% |   66.2%    96.2%     98.6%   99.8%
 #
 # Applied to the WHOLE-RECORDING spike count (`n_spikes`), absolute, no
-# per-frame variant and no carve-outs (Agrita 2026-08-07, threshold raised from
-# 200 to the derived floor 2026-08-12).
+# per-frame variant and no carve-outs (threshold raised from 200 to the derived
+# floor).
 LOW_SPIKE_THRESHOLD = 2 * MIN_GROUP_SPIKES        # = 240
 
 # ── rule 5's time-domain gate ───────────────────────────────────────────────
@@ -67,7 +66,7 @@ LOW_SPIKE_THRESHOLD = 2 * MIN_GROUP_SPIKES        # = 240
 # standardised by lambda alone.
 CCG_Z_CURVE_N = (279., 363., 462., 576., 731., 932., 1254., 1757., 2820., 5987.)
 
-# ONE CURVE PER ACCUSER COUNT. Rule 5 tests EVERY accusing neighbour (#14), so a
+# ONE CURVE PER ACCUSER COUNT. Rule 5 tests EVERY accusing neighbour, so a
 # cluster with k accusers gets k chances to exceed its threshold. At a per-PAIR
 # 5% the per-CLUSTER false-decline rate would be 1-(1-0.05)^k -- ~10% at k=2 and
 # ~19% at k=4, concentrated on the 31% of rule-5 clusters that have more than one
@@ -185,8 +184,7 @@ def ccg_z_threshold(n_min, k=1):
 # `dip_pval < DIP_PVAL_THRESH AND l_ratio < L_RATIO_THRESH`, and only the
 # CONJUNCTION has a meaningful error rate. Measured on MEArec known single
 # units, d=30, where any 'overmerged' verdict is a false positive by
-# construction (m260812_threshold_operating_point.py, from
-# data/results/phase1_mearec_null.json):
+# construction:
 #
 #      n     dip alone   L-ratio alone   BOTH (the rule in force)
 #    240        10.3%          13.6%            4.7%
@@ -212,7 +210,7 @@ def ccg_z_threshold(n_min, k=1):
 # (n, d) grid and shipped as a lookup -- runtime cost then is an interpolation.
 #
 # *** THE ~5% DOES NOT SURVIVE DRIFT (P1, measured 2026-08-12). ***
-# m260812_p1_drift_specificity.py, on a controlled factorial where drift is the
+# Measured on a controlled factorial where drift is the
 # ONLY thing that varies (same generation pipeline, well-recovered known single
 # units, any fire = false positive):
 #
@@ -234,7 +232,7 @@ def ccg_z_threshold(n_min, k=1):
 # Slow drift is WORSE than fast (25.6% vs 17.3% at n=2000), which inverts the
 # naive expectation and is not yet explained.
 #
-# BURSTING NOW MEASURED TOO (2026-08-13, m260813_p1_burst_specificity.py), on a
+# BURSTING NOW MEASURED TOO (2026-08-13), on a
 # regenerated build where it actually took effect (3-4x excess of ISIs <10 ms and
 # higher amplitude CV in the burst arm; note n_isi_under_1ms is 0 in BOTH arms
 # and is NOT a valid indicator -- a well-simulated burst cell does not violate a
@@ -265,15 +263,15 @@ L_RATIO_THRESH = 0.05
 CONJUNCTION_TYPE1_BY_N = {240: 0.047, 500: 0.058, 1000: 0.059,
                           2000: 0.057, 4000: 0.053}
 
-# Minority component firing below this is not a candidate unit. RATE ONLY
-# (Agrita 2026-08-11): the spike-fraction half was dropped because a fraction is
+# Minority component firing below this is not a candidate unit. RATE ONLY:
+# the spike-fraction half was dropped because a fraction is
 # contaminated by the other component's activity.
 SATELLITE_RATE_HZ = 0.1
 
 # ── drift, as a REPORTED risk rather than a corrected one ────────────────────
 # drift_ratio = (range of per-time-bin median y) / (within-bin sigma), i.e. how
 # far a cluster moves relative to its OWN spread. Measured per cluster from
-# spike_positions.npy by m260812_real_drift_vs_overmerge.py.
+# spike_positions.npy.
 #
 # WHY IT IS REPORTED AND NOT CORRECTED. Two attempts to remove the drift-driven
 # false positives both failed, for the same structural reason:
@@ -298,12 +296,13 @@ SATELLITE_RATE_HZ = 0.1
 #     ratio      1.6x   1.8x   2.0x   2.2x   2.5x   2.8x   3.2x
 DRIFT_RATIO_FLAG = 1.0
 
-# ── mind_snag's L-ratio channel: the two numbers its criterion turns on ──────
+# ── the screen layer's L-ratio channel: the two numbers its criterion turns on
 # A frame is CLEAN when EVERY comparison (noise + each neighbour) is below
 # L_RATIO_MS_THRESH; the cluster PASSES when clean_frames / n_frames >=
-# ISOLATED_T_RATIO. Mirrors mind_snag config.py:19,21 and auto_curate.py:231-233.
+# ISOLATED_T_RATIO. Mirrors unitassay/screen/config.py and
+# unitassay/screen/curation/auto_curate.py.
 # NOT "max across frames" -- that is strictly harsher and disagreed with
-# mind_snag's own decision on 17.6% of the clusters it passed.
+# the screen layer's own decision on 17.6% of the clusters it passed.
 L_RATIO_MS_THRESH = 0.2
 ISOLATED_T_RATIO = 0.6
 

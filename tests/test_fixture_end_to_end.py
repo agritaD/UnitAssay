@@ -16,7 +16,6 @@ NOT A BENCHMARK. Four hand-made clusters say nothing about accuracy; that is
 measured on the synthetic corpus with ground truth. See tests/make_fixture.py.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 from pathlib import Path
@@ -32,7 +31,6 @@ GOLDEN = {
     # 12% of its ISIs are inside the refractory window, by construction
     2: (600, 'FAIL', '2', 'oversplit'),
     # under the 240-spike floor: LOW_SPIKE_COUNT whatever the rules said
-    # (Agrita 2026-10-01, option i; it was PASS-labelled-low_spike before)
     3: (120, 'LOW_SPIKE_COUNT', '7', 'low_spike_count'),
 }
 
@@ -161,8 +159,8 @@ def test_a_run_emits_no_warnings(tmp_path):
 def test_every_row_has_one_of_three_decisions_and_a_matching_class(result):
     """PASS / FAIL / LOW_SPIKE_COUNT and nothing else; the class always agrees.
 
-    Agrita, 2026-10-01: "I don't want anything to be ambiguous or untested --
-    we have pass, fail and low-spike count." Before this, 132 real clusters were
+    Nothing may be ambiguous or untested: every cluster is pass, fail or
+    low-spike count. Before this rule, 132 real clusters were
     FAIL with error_class `clean`, and 2,613 PASSed under the spike floor.
     """
     from unitassay.curate.taxonomy import DECISIONS

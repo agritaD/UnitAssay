@@ -2,22 +2,21 @@
 """curate/decision_flow.py
 
 curate(): executable implementation of the 5-stage decision-flow rule table
-finalized 2026-07-23/24 (see project_spikesorting_noise_fail_stable_investigation
-memory for the full derivation). Until now this rule table existed only as a
-spec in memory/conversation, never as code -- this module is that code.
+finalized 2026-07-23/24. The rule table had existed only as a written spec;
+this module is its one implementation.
 
 Input contract: curate() takes ONE merged record (a dict) per cluster, with
 these keys expected (missing/None keys are handled explicitly, not assumed):
   ldl_verdict   : 'unimodal' | 'not_overmerged' | 'overmerged' | 'multiway' |
                   'ambiguous' | 'untested'
-  screen_pass       : bool -- mind_snag's real curation decision
+  screen_pass       : bool -- the screen layer's real curation decision
   dominant_source : 'noise' | 'other_cluster' | 'unclassified' | None --
-                  mind_snag's OWN vocabulary, left unchanged so this field stays
-                  in step with the upstream tool. Read it for what the algorithm
+                  the screen layer's OWN vocabulary, left unchanged so this field
+                  stays in step with it. Read it for what the algorithm
                   compared, not for what contaminates: 'noise' means the
                   within-cluster reference-channel comparison dominated, i.e. no
                   candidate SOURCE was named -- NOT that the contaminant is
-                  noise. Ground truth says it is usually another neuron (#42).
+                  noise. Ground truth says it is usually another neuron.
                   Our own tags say this properly; see curate/taxonomy.py.
                   which L-ratio comparison dominates the failure, only
                   meaningful when screen_pass=False and ldl_verdict is clean
@@ -25,14 +24,14 @@ these keys expected (missing/None keys are handled explicitly, not assumed):
                   shape-dissimilar reference channel existed at all)
   neighbor_never_fails : bool | None -- STRICT: neighbor L-ratio never
                   crossed threshold in ANY frame
-  passes_isi_independent : bool | None -- mind_snag's real ISI-VR/burst-
+  passes_isi_independent : bool | None -- the screen layer's real ISI-VR/burst-
                   corrected criterion, recomputed independently. None means
                   not yet computed for this record (conservative default
                   applies, tagged as pending, not silently assumed).
   isi_rate      : float | None -- RAW fraction of intervals under 1 ms
                   (n_viol / (n_spikes-1)). Deliberately NOT the Hill ratio and
                   NOT thresholded: `passes_isi_independent` is the yes/no that
-                  mind_snag derives from this and then throws away, and the
+                  the screen derives from this and then throws away, and the
                   continuous value still discriminates among clusters that all
                   passed that flag. Rule 1 only. None = never computed, which
                   cannot be read as "one cell", so the over-merge stands.
@@ -45,8 +44,8 @@ these keys expected (missing/None keys are handled explicitly, not assumed):
   between_cluster_confirmed_separated : bool | None -- real dip_lratio_between()
                   result on this cluster vs its actual dominant neighbor
                   cluster (channel-aligned, min_group_spikes=120 guard),
-                  computed by m260729_between_cluster_real_check.py for the
-                  unexplained_fail_neighbor / passes-ISI-VR population. True =
+                  computed for the unexplained_fail_neighbor / passes-ISI-VR
+                  population. True =
                   both dip and L-ratio confirm real separation (retrieve).
                   False = both confirm genuine overlap (fail stands). None =
                   signals disagree, or not yet computed for this record.
@@ -57,7 +56,6 @@ tag identifies WHY, for downstream panel breakdowns (e.g. distinguishing
 the same final FAIL decision but come from different original categories).
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 
@@ -91,8 +89,7 @@ SPLIT_TIME_ORDERED_AUC = 0.6
 # THE RULES, in the order a reader would check them -- which is NOT the order
 # the legacy ids were assigned in.
 #
-# Agrita, 2026-09-03: "I like the name 'rule' better." So these ARE the rules and
-# figures name them that way; the field is called `stage` only because `rule` is
+# These ARE the rules and figures name them that way; the field is called `stage` only because `rule` is
 # taken by the legacy id, which is frozen (14 analysis scripts select on it with
 # startswith('1') for over-merge and startswith('5') for neighbour, so
 # renumbering under them would silently change what they select). The ids are archaeology -- they number the
@@ -105,7 +102,7 @@ SPLIT_TIME_ORDERED_AUC = 0.6
 # those silently select duplicates instead -- no error, wrong numbers. `rule` is
 # therefore frozen as a legacy key and every new figure keys on `stage`.
 #
-# A STAGE IS A SCOPE, NOT AN OUTCOME (Agrita, 2026-09-02). It says what the test
+# A STAGE IS A SCOPE, NOT AN OUTCOME. It says what the test
 # could SEE, not what the cluster IS: the within-cluster test is oblivious to
 # other clusters, so what it finds is "not this unit" and nothing more, while
 # the between-cluster test is the only one that can say "other cluster". Several
@@ -129,9 +126,8 @@ STAGE = {
     'other': '8-fall-through', 'other-pending': '8-fall-through',
 }
 
-# ONE NAMING SCHEME, Agrita 2026-09-04: "the rule names are not in order;
-# sometimes numerical sometimes alphabetical; can we have one logical sense of
-# naming."
+# ONE NAMING SCHEME: rule names follow one logical order, not a mix of
+# numerical and alphabetical ids.
 #
 # There were THREE schemes running at once -- the legacy id (`R`, `0`, `1-drift`,
 # `5-ccg`, `7-within`, `other`), the `stage` field, and the figure titles -- and
@@ -148,8 +144,8 @@ STAGE = {
 # feature-space test and differ only in how the cluster reached it. The legacy
 # id stays as the internal key -- 14 scripts select on it with startswith() --
 # but nothing shown to a reader should use it.
-# LABELS RENAMED 2026-10-01 (Agrita; the three-decision rule leaves no
-# "pending"/"untested" state, so no label may name one):
+# LABELS (the three-decision rule leaves no "pending"/"untested" state, so no
+# label may name one):
 #   4b  'evidence incomplete' -> 'reference not cleared'
 #   5d  'evidence incomplete' -> 'neighbour not cleared'
 #   8   'unattributed' / FALL-THROUGH -> 'stability below 60%' / STABILITY
@@ -191,7 +187,7 @@ RULE_TITLE = {
     '7': 'CLEAN', '8': 'STABILITY',
 }
 
-# the rules a figure draws: rule 6 never fires and is omitted (Agrita, 2026-10-01)
+# the rules a figure draws: rule 6 never fires and is omitted
 FIGURE_RULES = ('1', '2', '3', '4', '5', '7', '8')
 
 
@@ -256,7 +252,7 @@ def curate(r):
     # threshold reaches 5%. The conjunction does not help either: below the floor
     # the L-ratio fires on 92-100% of clean units, so it adds no specificity and
     # the conjunction collapses onto the dip. Measured on 414 ground-truth clean
-    # units across 16 drift-free recordings (m260821_dip_null_below_floor.py),
+    # units across 16 drift-free recordings,
     # a null that reproduces the adopted operating point (0.043 vs Phase 5's
     # 0.047-0.059) where it can be checked.
     #
@@ -273,8 +269,7 @@ def curate(r):
     # was a second copy of one fact that could only ever go out of sync. Callers
     # that want it derive it on read: `stage_of(row['rule'])`, or
     # `STAGE_QUESTION[stage_of(row['rule'])]` for the question that stage asks.
-    #
-    # Agrita, 2026-09-08: "over-information is also harmful."
+    # Over-information is also harmful.
 
     # THE READER-FACING ID, emitted alongside the internal one.
     #
@@ -297,9 +292,8 @@ def curate(r):
 def _apply_rules(r):
     v = r['ldl_verdict']
     # PRECEDENCE WHEN THE TWO STATISTICS CONFLICT: the L-ratio wins.
-    # Agrita, 2026-09-03: "we should have an answer when L-ratio and LDL are in
-    # conflict ... these are not low-spiking clusters, they are already filtered
-    # out."
+    # A conflict between the L-ratio and the LDL needs an answer: these are not
+    # low-spike clusters, which are already filtered out.
     #
     # `ambiguous` is `separation_verdict`'s name for the dip test and the
     # L-ratio contradicting each other, and on the 273 such clusters the
@@ -311,14 +305,14 @@ def _apply_rules(r):
     # STATED AS PRECEDENCE, NOT AS POWER. Only 16 of the 273 are truly
     # over-merged, so "never call over-merge here" is right 94.1% by saying
     # nothing, and the L-ratio's 93.8% IS that base rate -- it takes the majority
-    # side on 272 of 273 ([[feedback-conditional-baseline]]). What the numbers
+    # side on 272 of 273 (score against the conditional base rate). What the numbers
     # establish is that the DIP is unreliable in this regime, not that the
     # L-ratio has resolved the question. Which 16 are the real over-merges stays
     # unknown, consistent with the within-cluster CCG (AUC 0.476, not powered)
     # and the auto-correlogram (AUC 0.547, powered but not specific).
     #
     # COSTS ALMOST NO DECISION: 271 of 273 keep the same verdict, because rule 7
-    # was deferring to mind_snag and mind_snag already agreed with the rule that
+    # was deferring to the screen and the screen already agreed with the rule that
     # now names them. The 2 that move are both PASS -> FAIL and both correct.
     # Balanced accuracy 83.7 -> 83.7. This is an ATTRIBUTION fix: the clusters
     # stop reading "ambiguous, deferred" and get named by the rule that decides
@@ -328,12 +322,12 @@ def _apply_rules(r):
     screen_pass = bool(r['screen_pass'])
     passes_isi_ind = r.get('passes_isi_independent')  # None = not yet checked
 
-    # Rule 1: LDL overmerged/multiway -> FAIL always, overriding mind_snag,
+    # Rule 1: LDL overmerged/multiway -> FAIL always, overriding the screen,
     # UNCONDITIONALLY -- checked before the ISI-VR gate below on purpose
     # (2026-07-31). This project's central finding is that the LDL/L-ratio
-    # overmerge test catches real curation errors mind_snag's own pipeline
+    # overmerge test catches real curation errors the screen layer alone
     # (which already includes ISI-VR) misses -- that's the reason LDL is
-    # being integrated into mind_snag at all, not a competing method. If a
+    # combined with the screen at all, not a competing method. If a
     # cluster showing real overmerge structure ALSO happens to fail ISI-VR,
     # letting ISI-VR claim the tag would understate what the overmerge test
     # itself is catching. So overmerge attribution is preserved in full
@@ -342,19 +336,19 @@ def _apply_rules(r):
     # Collapses old confirmed_fail (screen_pass already False, agrees) and the
     # screen_pass-overriding branch (screen_pass was True) into one final FAIL.
     #
-    # THE OVERRIDE BRANCH WAS RENAMED AND FLAGGED, 2026-08-28 (Agrita).
+    # THE OVERRIDE BRANCH IS NAMED AND FLAGGED.
     # It used to be `missed_overmerge_corrected`, which asserts a mechanism the
-    # test does not establish. Measured against MEArec ground truth
-    # (m260828_rule1_override.py): it fires 161 times, catches 6 true
+    # test does not establish. Measured against MEArec ground truth:
+    # it fires 161 times, catches 6 true
     # over-merges and destroys 66 ground-truth-clean single units -- 41% of its
     # firings, and 11 clean units per over-merge recovered. Conditioned on the
-    # 18 over-merges mind_snag actually passed its sensitivity is a respectable
+    # 18 over-merges the screen actually passed its sensitivity is a respectable
     # 33.3%, so the branch is not broken; the NAME was.
     #
     # What the LDL establishes is that the spikes form two statistically
     # separable groups. That is true for all 161. "Over-merged" adds a second
-    # claim -- that the two groups are two NEURONS -- and Agrita, reviewing
-    # Fig_Rule1_Override_Examples.png, identified why it fails: the casualties
+    # claim -- that the two groups are two NEURONS -- and examples show why it
+    # fails: the casualties
     # are genuinely bimodal, but they are ONE neuron in two waveform states
     # (burst shape change, drift). Ground truth says one planted neuron owns a
     # median 99.3% of their spikes. In PC space the two cases are the same
@@ -371,10 +365,9 @@ def _apply_rules(r):
     #
     # NOT changed here, deliberately: curate/taxonomy.py still maps this tag to
     # mechanism 'overmerge'. Same overclaim one layer down, but it interacts
-    # with the settled policy of tagging drift units as over-merge
-    # [[project-spikesorting-paper-drift-framing]], and 6 positives cannot
-    # settle it. Deferred to #53 (hybrid ground truth) so the category is
-    # revisited once, not twice.
+    # with the settled policy of tagging drift units as over-merge, and 6
+    # positives cannot settle it. Deferred to hybrid ground truth so the
+    # category is revisited once, not twice.
     if v in OVERMERGE_VERDICTS:
         if not screen_pass:
             return {'decision': 'FAIL', 'needs_inspection': False,
@@ -394,7 +387,7 @@ def _apply_rules(r):
         # 1. TIMING SAYS HOW MANY CELLS. One neuron cannot fire twice inside its
         #    refractory period; two neurons sharing a cluster do not coordinate,
         #    so some of their spikes land close together. This is the RAW rate,
-        #    which mind_snag's own thresholded, burst-corrected flag computes and
+        #    which the screen's own thresholded, burst-corrected flag computes and
         #    then discards -- and it discriminates (AUC 0.846) even though every
         #    cluster reaching here already PASSED that flag. On synthetic:
         #    29 correct decision flips against 9 wrong, McNemar p=0.0017, and at
@@ -449,8 +442,8 @@ def _apply_rules(r):
     # structure, or independently failing ISI-VR, has a positive finding ABOUT
     # ITSELF, and letting redundancy claim the tag would understate what those
     # tests catch. But every rule below this one either issues a PASS (2/3/5) or
-    # defers to mind_snag (7/8), and neither is appropriate for a cluster that is
-    # a copy: passing it double-counts a neuron, and deferring asks mind_snag a
+    # defers to the screen (7/8), and neither is appropriate for a cluster that is
+    # a copy: passing it double-counts a neuron, and deferring asks the screen a
     # question it has no channel to answer.
     #
     # NOT A FAILURE. Redundant is its own outcome (taxonomy.REDUNDANT) because
@@ -484,7 +477,7 @@ def _apply_rules(r):
     # (`flagged_ambiguous_ldl` with screen_pass), and unreachable code that can pass
     # a cluster is the kind of thing that gets re-enabled by accident. Its
     # sub-branches -- `7-within`, `7-neighbor`, `7-neighbor-retrieved`,
-    # `7-neighbor-all`, carrying the #44 and #45 reasoning -- go with it; the
+    # `7-neighbor-all`, and their attribution reasoning -- go with it; the
     # argument survives in git history and in RULE_ID, which still decodes those
     # ids so archived runs can be read.
     #
@@ -500,16 +493,16 @@ def _apply_rules(r):
         return {'decision': 'PASS', 'needs_inspection': False, 'tag': 'confirmed_pass', 'rule': '2'}
 
     # screen_pass=False, LDL clean, ISI-VR already confirmed True or unknown
-    # (rule 0 above already caught the False case) -- mind_snag failed this
+    # (rule 0 above already caught the False case) -- the screen failed this
     # cluster for some reason the within-cluster LDL test doesn't confirm.
     # Resolve WHY.
     # A RETRIEVAL NEEDS AN AFFIRMATIVE CLEAN VERDICT, not merely a clean-looking
-    # string (#48). `not_overmerged` with an unresolved basis means the LDL test
-    # could not be adjudicated -- after #47 that is `+unsplittable`, a group the
-    # dip could not split at all. Rules 3 and 5 turn a mind_snag failure into a
+    # string. `not_overmerged` with an unresolved basis means the LDL test
+    # could not be adjudicated -- that is `+unsplittable`, a group the
+    # dip could not split at all. Rules 3 and 5 turn a screen failure into a
     # PASS on the strength of "LDL says clean", so if the LDL never answered,
-    # the retrieval has nothing to stand on. Same principle as rule 7 in #44,
-    # applied to retrieval instead of attribution.
+    # the retrieval has nothing to stand on. Same principle as rule 7's
+    # attribution, applied to retrieval.
     #
     # Measured: 5 of 847 rule-3 retrievals rest on an unresolved verdict, and
     # all have lratio_passed_measured=False, so no channel cleared them --
@@ -531,15 +524,15 @@ def _apply_rules(r):
         if passes_isi_ind is None:
             return {'decision': 'FAIL', 'needs_inspection': True,
                     'tag': 'pending_isi_check_within_cluster', 'rule': '3-pending'}
-        # RULE 3 IS RETIRED (2026-08-25, Agrita). It used to PASS here when
+        # RULE 3 IS RETIRED. It used to PASS here when
         # `noise_ch_flagged and neighbor_never_fails and ldl_adjudicated`, on the
-        # reasoning that mind_snag's noise verdict rests on a reference channel we
+        # reasoning that the screen's noise verdict rests on a reference channel we
         # know was compromised, so the failure should not stand.
         #
         # THE REASONING WAS SOUND AND THE RULE WAS STILL WRONG. It retrieves on an
         # ARTEFACT EXPLANATION -- "the evidence against this cluster is unreliable"
-        # -- which is not the same as evidence FOR the cluster. #48 already drew
-        # exactly this line when it gated rule 3 (but not rule 5) on
+        # -- which is not the same as evidence FOR the cluster. The same line was
+        # drawn when rule 3 (but not rule 5) was gated on
         # ldl_adjudicated, because "LDL says clean" was its only positive evidence.
         # A clean within-cluster verdict says nothing about whether the cluster is
         # a fragment of a neighbour, and that is what it mostly turned out to be.
@@ -567,9 +560,8 @@ def _apply_rules(r):
         # end of the distribution, so a spike-count condition would not have
         # transferred. Do not reintroduce it.
         #
-        # What is NOT claimed: that mind_snag's noise verdict is sound. It is
-        # measured at 3.9% detection on ground-truth noise clusters
-        # (m260825_quality_channel_probe.py). The claim is only that this override
+        # What is NOT claimed: that the screen's noise verdict is sound. It is
+        # measured at 3.9% detection on ground-truth noise clusters. The claim is only that this override
         # is empirically worse than the verdict it overrides.
         return {'decision': 'FAIL', 'needs_inspection': False,
                 'tag': 'confirmed_fail_within_cluster', 'rule': '4'}
@@ -579,7 +571,7 @@ def _apply_rules(r):
             return {'decision': 'FAIL', 'needs_inspection': True,
                     'tag': 'pending_isi_check_neighbor', 'rule': '5-pending-isi'}
         between_ok = r.get('between_cluster_confirmed_separated')
-        # NOT gated on ldl_adjudicated, unlike rule 3 (#48). This retrieval rests
+        # NOT gated on ldl_adjudicated, unlike rule 3. This retrieval rests
         # on an AFFIRMATIVE POSITIVE FINDING -- the between-cluster test says the
         # neighbour is separated -- which stands on its own evidence. Rule 3
         # retrieves on an ARTEFACT EXPLANATION (the reference was compromised),
@@ -588,7 +580,7 @@ def _apply_rules(r):
         # between test HAD adjudicated into `pending_between_cluster_check`, a tag
         # asserting the opposite -- caught by taxonomy._neighbor_sub_type's guard.
         if between_ok is True:
-            # ALL ACCUSERS, NOT JUST THE LOUDEST (#14, 2026-08-21).
+            # ALL ACCUSERS, NOT JUST THE LOUDEST.
             # `between_cluster_confirmed_separated` adjudicates the DOMINANT
             # neighbour only -- the argmax of the per-neighbour L-ratio. 26% of
             # these clusters are accused by more than one neighbour, and rule 5
@@ -612,7 +604,7 @@ def _apply_rules(r):
             assert all_sep is not _MISSING, (
                 'curate(): between_all_neighbours_separated is required to reach '
                 'rule 5\'s retrieval -- passing on the dominant neighbour alone '
-                'leaves every other accuser untested (#14). Enrich the record '
+                'leaves every other accuser untested. Enrich the record '
                 '(records.load_records does this) or pass it explicitly. Absent '
                 'must not be silently treated as "all clear".')
             if all_sep is False:
@@ -642,7 +634,7 @@ def _apply_rules(r):
             # an untested default returning a PASS. 99.7% of the population has
             # one (13 of 4,658 do not), so the pending branch is negligible
             # rather than a hiding place.
-            # THE TIME-DOMAIN GATE, OVER EVERY ACCUSER (2026-09-02).
+            # THE TIME-DOMAIN GATE, OVER EVERY ACCUSER.
             #
             # Everything above this point is FEATURE SPACE, and feature space
             # cannot answer the question rule 5 asks: scored against per-pair
@@ -653,13 +645,11 @@ def _apply_rules(r):
             # timing is not party to the sorter's split, so it can corroborate
             # independently.
             #
-            # THE FIRST VERSION OF THIS GATE TESTED ONE NEIGHBOUR, and the
-            # hybrid terminal caught it (docs/request_rule5_ccg_multi_accuser_
-            # 2026_09_02.md): the rule tested ALL accusers with the test that
+            # THE FIRST VERSION OF THIS GATE TESTED ONE NEIGHBOUR: the rule tested ALL accusers with the test that
             # does not discriminate and only the DOMINANT accuser with the test
             # that does. 1,422 of 4,588 clusters reaching this branch (31.0%)
-            # have accusers the gate never saw. Same scope error #14 fixed for
-            # the feature-space side, reintroduced one line below it.
+            # have accusers the gate never saw. The same scope error, fixed for
+            # the feature-space side, had been reintroduced one line below it.
             #
             # EACH PAIR AGAINST ITS OWN THRESHOLD, not max-z. The threshold is a
             # curve in n_min, and two accusers of one cluster can differ greatly
@@ -673,7 +663,7 @@ def _apply_rules(r):
                 'feature-space evidence behind this retrieval is measured at '
                 'chance (AUC 0.50), so passing without the time-domain check '
                 'rests on nothing, and passing having checked only the loudest '
-                'accuser is the #14 scope error. Enrich the record or pass it '
+                'accuser is the same scope error. Enrich the record or pass it '
                 'explicitly; absent must not be read as "clean".')
             if not acc:
                 return {'decision': 'FAIL', 'needs_inspection': True,

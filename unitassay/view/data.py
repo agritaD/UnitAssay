@@ -1,7 +1,7 @@
 """view/data.py — everything the viewer shows, as plain JSON-able dicts.
 
 READ-ONLY. Nothing here writes a file. The viewer is for looking at what the
-two layers measured and decided; it never edits a verdict (Agrita, 2026-10-05).
+two layers measured and decided; it never edits a verdict.
 
 NO STATISTIC IS COMPUTED HERE THAT THE PACKAGE ALREADY COMPUTES. The per-frame
 L-ratios come from `process_sortdata_all_frames` -- the reader curate_session
@@ -15,7 +15,6 @@ What IS new here is display-only: subsampling PC clouds for plotting, binning
 the firing rate over time, and picking each cluster's peak channel.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 import json

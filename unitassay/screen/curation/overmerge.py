@@ -1,17 +1,14 @@
-"""mind_snag/curation/overmerge.py — the adopted overmerge test (LDL).
+"""screen/curation/overmerge.py — the adopted overmerge test (LDL).
 
-Port of claudeSS `Utils/bimodality.overmerge_verdict`, kept SELF-CONTAINED
-because mind_snag must not import from the analysis tree. That boundary is
-real, so exactly one copy has to exist on each side; the fix for drift is not
-wishing the copy away but PINNING it -- see
-claudeSS/code/analysis/m260813_mindsnag_parity_check.py, which fails if the two
-implementations ever disagree on a fixed battery.
+Port of `unitassay.curate.bimodality.overmerge_verdict`, kept SELF-CONTAINED
+so the screen layer does not import from the curate layer. The two copies must
+agree; if the math changes in one, change it in the other.
 
 WHY THIS REPLACED THE PREVIOUS `_is_lda_bimodal`. That was a port of the RETIRED
 forced-k-means(2) design, and it stayed in the shipped package long after the
 analysis side moved on -- the sixth of six near-duplicate implementations, and
 the only one still running in production. Measured consequences of the old one
-on mind_snag's burst gate (claudeSS m260812_burst_gate_test_swap.py):
+on the screen layer's burst gate:
 
   * it reads a LOPSIDED split as two units, so its error is a false POSITIVE
   * on 2,417 isi_vr clusters it wrongly BLOCKED 11 burst rescues and wrongly
@@ -32,7 +29,6 @@ the L-ratio is right 256/256 when the two disagree on known single units, but
 the dip is what finds the structure in the first place.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 from __future__ import annotations
@@ -45,7 +41,7 @@ from sklearn.mixture import GaussianMixture
 try:
     import diptest
 except ImportError as e:  # pragma: no cover
-    raise ImportError("mind_snag's overmerge test requires the 'diptest' package") from e
+    raise ImportError("The overmerge test requires the 'diptest' package") from e
 
 DIP_PVAL_THRESH = 0.05
 L_RATIO_THRESH = 0.05

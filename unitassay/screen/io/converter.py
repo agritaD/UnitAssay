@@ -3,7 +3,6 @@
 Provides bidirectional conversion for NPclu, SortData, and RasterData files.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 

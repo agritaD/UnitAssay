@@ -2,10 +2,10 @@
 """curate/lratio.py
 
 Canonical SINGLE-DIRECTION L-ratio: how much does `pc_other`'s spike cloud
-intrude into a Gaussian fit to `pc_unit`'s cloud. This is the mind_snag
+intrude into a Gaussian fit to `pc_unit`'s cloud. This is the screen layer's
 contamination question -- "if I call these spikes one unit, how much does
-some other spike source contaminate it" -- and mirrors mind_snag's real
-curation/auto_curate.py._compute_l_ratio exactly (unit is always the
+some other spike source contaminate it" -- and mirrors
+unitassay/screen/curation/auto_curate.py._compute_l_ratio exactly (unit is always the
 reference; not symmetric).
 
 Consolidated 2026-07-13 from 13 near-identical copies (_ms_l_ratio,
@@ -19,7 +19,6 @@ for overmerge/oversplit testing) -- that's a genuinely different question
 deliberately stays a separate function; do not merge the two.
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 
@@ -28,7 +27,7 @@ from scipy.stats import chi2 as _chi2
 
 
 def ms_l_ratio(pc_unit, pc_other):
-    """L-ratio of pc_other against a Gaussian fit to pc_unit (mind_snag /
+    """L-ratio of pc_other against a Gaussian fit to pc_unit (screen layer /
     Schmitzer-Torbert & Redish 2004 formula).
 
     pc_unit: (n_unit, p) flat feature matrix, the REFERENCE cluster.

@@ -4,7 +4,6 @@ Ports readClusterGroupsCSV.m. These files map cluster IDs to quality labels:
   0 = noise, 1 = mua, 2 = good, 3 = unsorted
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 

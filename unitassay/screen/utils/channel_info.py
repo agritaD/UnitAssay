@@ -3,7 +3,6 @@
 Ports clus_channel_infor.m and getNP_chanDepthInfo.m.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 
@@ -43,7 +42,7 @@ def clus_channel_info(
     with highest waveform energy (max_site) and lowest energy (min_site),
     weighted by PC feature coverage.
 
-    EXPERIMENTAL (this dev copy only): the lowest-energy channel used to be
+    The lowest-energy channel used to be
     picked purely by PTP energy, with no check that it isn't still capturing
     a decayed copy of the unit's own peak-channel waveform (spatial
     bleed-through on dense/small-pitch probes) rather than genuine

@@ -3,36 +3,27 @@
 Ports auto_curate.m. Classifies units as isolated or non-isolated
 based on Mahalanobis-based L-Ratio and ISI violation rate.
 
-EXPERIMENTAL (this dev copy only, 2026-07-14): ISI violation rate now has a
-burst-cell correction ported from analysis/compute_corrected_isi.py's
-is_burst_cell() (same logic, same 0.80 threshold, same 1ms refractory
-period -- not a window change, just a guard on top of it). A cluster that
-fails ISI-VR but has >=80% of its <1ms violations concentrated below 0.5ms
-looks like an intrinsic burst-firing neuron (doublets/triplets), not
-contamination from a second neuron, so the ISI-VR failure is overridden and
-isolation falls back to L-Ratio alone -- see todo_mindsnag_burst_fix.md
-Option A.
+BURST CORRECTION: the ISI violation rate has a burst-cell guard on top of it
+(same 1 ms refractory period; not a window change). A cluster that fails
+ISI-VR but has >=80% of its <1 ms violations concentrated below 0.5 ms looks
+like an intrinsic burst-firing neuron (doublets/triplets), not contamination
+from a second neuron, so the ISI-VR failure is overridden and isolation falls
+back to L-Ratio alone.
 
-GATED (added same day, 2026-07-14, after re-reading
-m260708_overmerging_three_cases.py / Fig_Overmerging_ThreeCases.png): the
-short-ISI-concentration signature alone CANNOT tell a burst cell apart from
-a genuine overmerged cluster -- that figure's row 1 (confirmed genuine
-overmerge, dip_p=0.0005) has 95.2% of its <1ms violations below 0.5ms,
-comfortably over the 80% threshold, indistinguishable from row 2's true
-burst cell (dip_p=0.9507) by timing alone. Only the multichannel LDA
-dip-test + L-ratio bimodality check -- standard name (2026-07-14): the "LDL
-test" (LDA-Dip-Lratio; Utils/bimodality.py's lda_dip_lratio+verdict in the
-claudeSS analysis scripts; reimplemented self-contained below as
-_is_lda_bimodal since this package doesn't import from claudeSS/code/Utils/
--- keep in sync with that canonical file) tells them apart. So the
-burst-cell override now additionally requires the cluster's own multichannel
-PC features (NPclu.h5's stored pcFeat tensor) to come back UNIMODAL --
-dip_pval >= 0.05 OR l_ratio >= 0.05 -- before the ISI-VR failure is forgiven.
-A cluster that is both burst-concentrated AND LDA-bimodal keeps failing
-ISI-VR, matching that figure's conclusion exactly.
+GATED: the short-ISI-concentration signature alone CANNOT tell a burst cell
+apart from a genuine overmerged cluster. A confirmed overmerge (dip_p=0.0005)
+had 95.2% of its <1 ms violations below 0.5 ms, comfortably over the 80%
+threshold and indistinguishable from a true burst cell (dip_p=0.9507) by
+timing alone. Only the multichannel LDA dip-test + L-ratio bimodality check
+(the "LDL test", LDA-Dip-Lratio; unitassay.curate.bimodality, ported
+self-contained into unitassay.screen.curation.overmerge -- keep the two in
+sync) tells them apart. So the burst-cell override additionally requires the
+cluster's own multichannel PC features (NPclu.h5's stored pcFeat tensor) to
+come back UNIMODAL -- dip_pval >= 0.05 OR l_ratio >= 0.05 -- before the ISI-VR
+failure is forgiven. A cluster that is both burst-concentrated AND LDA-bimodal
+keeps failing ISI-VR.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 
@@ -51,7 +42,7 @@ from sklearn.cluster import KMeans
 try:
     import diptest
 except ImportError as e:
-    raise ImportError("mind_snag's burst-cell LDA gate requires the 'diptest' package") from e
+    raise ImportError("The burst-cell LDA gate requires the 'diptest' package") from e
 
 from unitassay.screen.config import IsolateConfig
 
@@ -76,7 +67,7 @@ def _is_lda_bimodal(feats: np.ndarray, min_spikes: int = LDA_MIN_SPIKES,
     a false POSITIVE: it read a LOPSIDED split as two units and so wrongly
     BLOCKED 11 burst rescues while wrongly allowing zero.
 
-    Now delegates to mind_snag.curation.overmerge, which implements the adopted
+    Now delegates to unitassay.screen.curation.overmerge, which implements the adopted
     recursive dip + L-ratio test. Kept as a thin wrapper rather than deleted so
     the call sites below are untouched. Name retained for the same reason,
     though it now means "is overmerged" rather than "is LDA-bimodal".
@@ -106,8 +97,7 @@ def auto_curate(output_dir: str | Path, cfg: IsolateConfig) -> None:
     Reverted to per-frame (2026-07-16) after a pooled-L-ratio experiment
     (2026-07-15) was tested at population scale and found net-negative
     against the best-k LDL test (132 regressions vs 77 improvements among
-    the 247 clusters that flip verdict) -- see [[spikesorting-ldl-test-audit]]
-    memory for the full comparison. Pooling did fix the temporally-
+    the 247 clusters that flip verdict). Pooling did fix the temporally-
     segregated missed-overmerge case it targeted, but broke more previously-
     correct passes than it fixed, for a reason not fully identified (not
     simply large-N, per the same memory).
@@ -192,8 +182,8 @@ def auto_curate(output_dir: str | Path, cfg: IsolateConfig) -> None:
 
             # --- Criterion 1: L-Ratio + temporal consistency, PER FRAME ---
             # Restored 2026-07-16 (reverted the 2026-07-15 pooled-L-ratio
-            # experiment -- see the module docstring above and
-            # [[spikesorting-ldl-test-audit]] memory for why). L-ratio
+            # experiment -- see the docstring of auto_curate() for why).
+            # L-ratio
             # computed independently per time frame for both the noise-
             # channel comparison and any same-peak-channel neighbor; passes
             # if the fraction of frames where ALL comparisons pass meets
@@ -258,14 +248,14 @@ def auto_curate(output_dir: str | Path, cfg: IsolateConfig) -> None:
                         # to flag (avoids false positives on low firing rate
                         # neurons where the Hill denominator, expected_viol, is
                         # tiny -- a handful of raw violations can otherwise blow
-                        # the normalized rate past threshold). Present in copy2
-                        # (Drift_Figure_Code/mind_snag) but dropped here when
+                        # the normalized rate past threshold). Present in an
+                        # earlier version but dropped here when
                         # burst-correction was added, apparently unintentionally
                         # -- the burst-correction gate below does NOT protect
                         # this case (it targets timing-concentrated violations
                         # from a genuinely bursting high-rate neuron, a
-                        # different failure mode). Restored 2026-07-26 after
-                        # Agrita traced a 50-session regression to this exact
+                        # different failure mode). Restored after a
+                        # 50-session regression was traced to this exact
                         # gap: 582/582 affected clusters had num_viol<5 and
                         # ZERO were caught by the burst-correction rescue.
                         viol_rate = 0.0

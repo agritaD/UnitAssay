@@ -3,7 +3,6 @@
 Ports extract_spikes.m. Loads KS results and saves structured cluster data.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 

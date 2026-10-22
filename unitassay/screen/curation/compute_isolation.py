@@ -6,7 +6,6 @@ isolation metrics (signal-to-noise score) against nearby noise channels.
 Also finds neighboring clusters on the same channel and saves their PC features.
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 

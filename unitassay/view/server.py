@@ -18,7 +18,6 @@ API (all GET, all JSON):
     /api/psth/<name>/<clu>              only when --events was given
 
 Author: Agrita Dubey
-Developed with Claude (Anthropic).
 Part of unitassay. Licence: MIT.
 """
 import json
