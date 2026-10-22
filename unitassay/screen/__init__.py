@@ -12,9 +12,7 @@ Authors: Agrita Dubey, Qiao (Betty) Xu
 Part of unitassay. Licence: MIT.
 """
 
-__version__ = "2.0.0"
-
 from unitassay.screen.config import IsolateConfig
 from unitassay.screen.pipeline import Pipeline
 
-__all__ = ["IsolateConfig", "Pipeline", "__version__"]
+__all__ = ["IsolateConfig", "Pipeline"]
