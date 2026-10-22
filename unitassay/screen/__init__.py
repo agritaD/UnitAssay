@@ -7,9 +7,7 @@ For each cluster, computes the L-ratio against a shape-dissimilar REFERENCE
 channel and against each neighbouring cluster, separately in each drift frame,
 and writes one SortData.h5 per cluster. `unitassay.curate` reads those files.
 
-Also carries spike extraction and format conversion. (It still carries the
-cross-recording stitching code inherited from mind_snag; that is scheduled for
-removal before release -- concatenate, do not stitch.)
+Also carries spike extraction and format conversion.
 
 Previously developed under the internal name `mind_snag`; the module was renamed
 on publication. The pipeline, config keys and file formats are unchanged.

@@ -3,7 +3,6 @@
 Subcommands:
   - ``run``     : Execute the full pipeline
   - ``convert`` : Convert between .mat and HDF5 formats
-  - ``stitch``  : Run cross-recording neuron stitching
 
 Authors: Agrita Dubey, Qiao (Betty) Xu
 Developed with Claude (Anthropic).
@@ -81,31 +80,3 @@ def convert(
     from unitassay.screen.io.converter import convert_file
     convert_file(Path(input_path), Path(output_path), direction)
     click.echo(f"Converted: {input_path} -> {output_path}")
-
-
-@cli.command()
-@click.option("--config", "-c", type=click.Path(exists=True), required=True, help="Path to YAML config file")
-@click.option("--output-dirs", required=True, multiple=True, help="Output directories, one per recording")
-@click.option("--ks-dirs", required=True, multiple=True, help="Kilosort output directories, one per recording")
-@click.option("--stitch-output-dir", "-o", type=click.Path(), required=True, help="Directory to save stitch results")
-@click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
-def stitch(
-    config: str,
-    output_dirs: tuple[str, ...],
-    ks_dirs: tuple[str, ...],
-    stitch_output_dir: str,
-    verbose: bool,
-) -> None:
-    """Run cross-recording neuron stitching."""
-    _setup_logging(verbose)
-
-    from unitassay.screen.config import IsolateConfig
-    from unitassay.screen.stitching.stitch_neurons import NeuronStitcher
-
-    cfg = IsolateConfig.from_yaml(config)
-
-    stitcher = NeuronStitcher(cfg, list(output_dirs), list(ks_dirs), stitch_output_dir)
-    result = stitcher.run()
-
-    click.echo(f"Stitch results saved to: {stitch_output_dir}")
-    click.echo(f"Found {result.stitch_table.shape[0]} stitched neurons")

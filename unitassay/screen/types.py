@@ -7,7 +7,7 @@ Part of unitassay. Licence: MIT.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -89,30 +89,3 @@ class RasterDataEntry:
     other_spike_clu: list[Any] | None         # neighboring cluster spikes
     rt: NDArray[np.float64] | None            # reaction times
     other_rt: list[NDArray[np.float64]] | None = None
-
-
-@dataclass
-class MatchDetail:
-    """Per-neuron-per-recording match details."""
-
-    matched_clu: int
-    fr_corr: float
-    wf_corr: float
-    spatial_distance: float
-
-
-@dataclass
-class StitchResult:
-    """Result of cross-recording neuron stitching.
-
-    stitch_table: [N x num_recs] array. Each row is a stitched neuron.
-    Columns correspond to recordings. NaN = neuron not found.
-    """
-
-    stitch_table: NDArray[np.float64]
-    recs: list[str] = field(default_factory=list)
-    cluster_type: str = "Isolated"
-    match_details: list[list[MatchDetail | None]] | None = None
-    top_k_matches: list[list[list[MatchDetail]]] | None = None
-    fr_score_matrix: NDArray[np.float64] | None = None
-    wf_score_matrix: NDArray[np.float64] | None = None

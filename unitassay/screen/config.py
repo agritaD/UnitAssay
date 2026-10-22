@@ -26,21 +26,6 @@ class CurationConfig:
 
 
 @dataclass
-class StitchingConfig:
-    """Parameters for cross-recording neuron stitching."""
-
-    fr_corr_threshold: float = 0.85
-    wf_corr_threshold: float = 0.85
-    min_recordings: int = 2
-    channel_range_um: float = 100
-    backend: str = "native"
-    top_k: int = 3
-    cluster_type: str = "Isolated"
-    filter_responsive: bool = False
-    responsive_threshold: float = 1.0
-
-
-@dataclass
 class RasterConfig:
     """Parameters for raster/PSTH extraction."""
 
@@ -81,7 +66,6 @@ class IsolateConfig:
     n_chan_bin: int = 385
 
     curation: CurationConfig = field(default_factory=CurationConfig)
-    stitching: StitchingConfig = field(default_factory=StitchingConfig)
     raster: RasterConfig = field(default_factory=RasterConfig)
     isolation: IsolationConfig = field(default_factory=IsolationConfig)
 
@@ -89,8 +73,6 @@ class IsolateConfig:
         # Convert nested dicts from YAML loading to dataclass instances
         if isinstance(self.curation, dict):
             self.curation = CurationConfig(**self.curation)
-        if isinstance(self.stitching, dict):
-            self.stitching = StitchingConfig(**self.stitching)
         if isinstance(self.raster, dict):
             raster_dict = dict(self.raster)
             if "time_window" in raster_dict:
@@ -104,6 +86,9 @@ class IsolateConfig:
         """Load configuration from a YAML file."""
         with open(path) as f:
             data = yaml.safe_load(f)
+        # Older configs carry a `stitching:` section for a feature that is no
+        # longer part of the package; ignore it rather than fail.
+        data.pop("stitching", None)
         return cls(**data)
 
     def to_yaml(self, path: str | Path) -> None:
